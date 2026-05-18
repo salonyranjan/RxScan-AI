@@ -1,135 +1,249 @@
+/**
+ * ============================================================
+ * PRESCRIPTION SCANNER API — route.ts (Authoritative)
+ * ============================================================
+ */
+
 import { NextRequest, NextResponse } from 'next/server';
 
-// 1. Groq LLM Processing Engine
-async function callGroqEngine(extractedTextPlaceholder: string): Promise<any[]> {
+interface Medication {
+  drugName: string;   
+  dosage: string;     
+  frequency: string;  
+}
+
+interface DrugInteraction {
+  drugA: string;              
+  drugB: string;              
+  severity: 'critical' | 'caution'; 
+  plainEnglishWarning: string; 
+}
+
+interface ApiResponse {
+  medications: Medication[];
+  interactions: DrugInteraction[];
+  source: string;
+  scannedAt: string;
+}
+
+// ─────────────────────────────────────────────────────────────
+// STEP 1 — MULTIMODAL IMAGE EXTRACTION (GROQ SCOUT)
+// ─────────────────────────────────────────────────────────────
+async function extractMedicationsFromImage(base64Image: string): Promise<Medication[]> {
   const apiKey = process.env.GROQ_API_KEY;
-  if (!apiKey) throw new Error("GROQ_API_KEY missing in server configuration.");
+  if (!apiKey) throw new Error('Server configuration error: GROQ_API_KEY environment variable is missing.');
 
-  const endpoint = "https://api.groq.com/openai/v1/chat/completions";
+  const rawBase64 = base64Image.replace(/^data:image\/\w+;base64,/, '');
 
-  const prompt = `
-    You are an expert clinical data parsing system. Analyze the following raw text extracted from a prescription:
-    "${extractedTextPlaceholder}"
+  const instructions = `
+    You are a precise medical data extraction assistant specializing in multimodal clinical analysis.
 
-    Extract all medications. Return ONLY a valid JSON array matching this exact structure, with no markdown code fences or conversational prose:
-    [{"drugName": "Name of drug", "dosage": "e.g. 10mg", "frequency": "e.g. Once daily"}]
-    If no valid drugs are found, return [].
+    STEP 1 — VERIFY THE IMAGE:
+    Analyze the image. If it is NOT a medical prescription slip, drug bottle label, or official clinical chart, return exactly this JSON: {"error": "NOT_A_PRESCRIPTION"}.
+
+    STEP 2 — EXTRACT AND STANDARDIZE GENERIC DRUGS:
+    If it is a valid prescription, extract all medications. 
+    
+    CRITICAL LOOKUP RULE: You MUST translate and convert all trade brand names, regional brand spellings, and brand extensions into their standard global GENERIC compound equivalent.
+    
+    Strict Examples:
+    - "Betaloc" or "Betaloc Succinate" -> write strictly as "Metoprolol"
+    - "Cimetidine" or "Cimetidine 400mg" -> write strictly as "Cimetidine"
+    - "Dorzolanidum" or "Dorzolamide 2% Drops" -> write strictly as "Dorzolamide"
+
+    The "drugName" field MUST contain only the pure generic name. Do not include strengths, unit weights, salt extensions (like succinate, maleate, hcl), or forms (like drops, tabs) in the "drugName" field. Put those details into "dosage" or "frequency".
+
+    Return a JSON object matching this exact schema:
+    {
+      "medications": [
+        {
+          "drugName": "Pure Generic Compound Name Only",
+          "dosage": "e.g. 100mg",
+          "frequency": "e.g. Twice daily"
+        }
+      ]
+    }
+
+    IMPORTANT RULES:
+    - Return ONLY raw JSON. No markdown enclosures, backticks, or text prose.
+    - If a field is not visible, use an empty string "".
   `;
 
-  const response = await fetch(endpoint, {
+  const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${apiKey}`,
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      model: "llama-3.3-70b-versatile",
-      messages: [{ role: "user", content: prompt }],
+      model: 'meta-llama/llama-4-scout-17b-16e-instruct',
       temperature: 0.1,
-      response_format: { type: "json_object" } // Forces Groq to return pure JSON structure
-    })
+      response_format: { type: 'json_object' },
+      messages: [
+        {
+          role: 'user',
+          content: [
+            { type: 'text', text: instructions },
+            { type: 'image_url', image_url: { url: `data:image/jpeg;base64,${rawBase64}` } },
+          ],
+        },
+      ],
+    }),
   });
 
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`Groq API Error: ${errText}`);
-  }
+  if (!response.ok) throw new Error('Groq AI visual parsing matrix down.');
 
   const result = await response.json();
-  const rawContent = result?.choices?.[0]?.message?.content || "[]";
-  
-  // Handle if Groq nests the array inside an object wrapper
-  const parsed = JSON.parse(rawContent);
-  return Array.isArray(parsed) ? parsed : (parsed.medications || parsed.drugs || []);
+  const parsed = JSON.parse(result?.choices?.[0]?.message?.content ?? '{}');
+
+  if (parsed.error === 'NOT_A_PRESCRIPTION') throw new Error('NOT_A_PRESCRIPTION');
+
+  if (Array.isArray(parsed)) return parsed as Medication[];
+  if (Array.isArray(parsed.medications)) return parsed.medications as Medication[];
+  return [];
 }
 
-// 2. NIH RxNav Live Interaction Checker
-async function checkLiveInteractions(medications: string[]): Promise<any[]> {
+// ─────────────────────────────────────────────────────────────
+// STEP 2 — PATIENT TRANSLATOR (GROQ CONVERSATIONAL COMPRESSION)
+// ─────────────────────────────────────────────────────────────
+async function simplifyWarningForPatient(drugA: string, drugB: string, medicalWarning: string): Promise<string> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return medicalWarning;
+
+  try {
+    const prompt = `
+      You are an empathetic health assistant translating complex medical interaction text for a patient.
+      Rewrite the description below into ONE short, clear, easy-to-understand sentence.
+      
+      Rules:
+      - Never use clinical jargon or codes (avoid: CYP2D6, clearance, plasma concentrations, metabolic inhibitors).
+      - Use plain language: "dizziness", "low heart rate", "severe bleeding risk", etc.
+      - State clearly what might happen and what they should do (e.g. "contact your doctor immediately").
+      - Keep it brief (under 30 words).
+      
+      Medications: ${drugA} + ${drugB}
+      Official Medical Description: ${medicalWarning}
+    `;
+
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+        temperature: 0.3,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+
+    if (!response.ok) return medicalWarning;
+    const data = await response.json();
+    return data?.choices?.[0]?.message?.content?.trim() ?? medicalWarning;
+  } catch {
+    return medicalWarning;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// STEP 3 — BULLETPROOF INTERACTION SEARCH TRAVERSAL (NIH RxNAV)
+// ─────────────────────────────────────────────────────────────
+async function checkForDrugInteractions(medications: Medication[]): Promise<DrugInteraction[]> {
   if (medications.length < 2) return [];
 
   try {
-    const rxCuis: string[] = [];
-    for (const name of medications) {
-      const searchRes = await fetch(`https://rxnav.nlm.nih.gov/REST/rxcui.json?name=${encodeURIComponent(name)}&srchType=1`);
-      if (searchRes.ok) {
-        const data = await searchRes.json();
-        const id = data?.idGroup?.rxnormId?.[0];
-        if (id) rxCuis.push(id);
+    const nihDrugIds: string[] = [];
+
+    // Step A: Accumulate unique Concept IDs (RxCUIs)
+    for (const med of medications) {
+      const cleanGenericName = med.drugName
+        .toLowerCase()
+        .replace(/\b(succinate|maleate|fumarate|hcl|hydrochloride|sodium|potassium|tabs|caps|drops|2%)\b/gi, '')
+        .trim();
+
+      const lookupUrl = `https://rxnav.nlm.nih.gov/REST/rxcui.json?name=${encodeURIComponent(cleanGenericName)}&srchType=1`;
+      const lookupResponse = await fetch(lookupUrl);
+
+      if (lookupResponse.ok) {
+        const lookupData = await lookupResponse.json();
+        const nihId = lookupData?.idGroup?.rxnormId?.[0];
+        if (nihId && !nihDrugIds.includes(nihId)) {
+          nihDrugIds.push(nihId);
+        }
       }
     }
 
-    if (rxCuis.length < 2) return [];
+    if (nihDrugIds.length < 2) return [];
 
-    const interactionUrl = `https://rxnav.nlm.nih.gov/REST/interaction/list.json?rxcuis=${rxCuis.join('+')}`;
-    const interactionRes = await fetch(interactionUrl);
-    if (!interactionRes.ok) return [];
+    // Step B: Query the entire interaction list matrix
+    const interactionUrl = `https://rxnav.nlm.nih.gov/REST/interaction/list.json?rxcuis=${nihDrugIds.join('+')}`;
+    const interactionResponse = await fetch(interactionUrl);
+    if (!interactionResponse.ok) return [];
 
-    const intData = await interactionRes.json();
-    const parsedAlerts: any[] = [];
+    const interactionData = await interactionResponse.json();
+    const warnings: DrugInteraction[] = [];
+    
+    // De-duplicate tracking set to guarantee no identical pairs hit the UI map twice
+    const capturedPairs = new Set<string>();
 
-    const interactionTypeGroup = intData?.fullInteractionTypeGroup || [];
-    for (const group of interactionTypeGroup) {
-      const fullInteractionType = group.fullInteractionType || [];
-      for (const item of fullInteractionType) {
-        const drugA = item.minConcept[0]?.name;
-        const drugB = item.minConcept[1]?.name;
-        const severity = item.interactionPair[0]?.severity?.toLowerCase() === 'high' ? 'critical' : 'caution';
-        const description = item.interactionPair[0]?.description || 'Potential interaction detected.';
+    // 🚀 MULTI-LAYER TRAVERSAL SHIELD: Deep parse both primary type groups AND secondary matrix arrays
+    const typeGroups = interactionData?.fullInteractionTypeGroup ?? [];
+    
+    for (const group of typeGroups) {
+      for (const interactionType of group.fullInteractionType || []) {
+        for (const pair of interactionType.interactionPair || []) {
+          
+          const drugA = interactionType.minConcept?.[0]?.name ?? 'Unknown Drug';
+          const drugB = interactionType.minConcept?.[1]?.name ?? 'Unknown Drug';
+          
+          const pairKey = [drugA, drugB].sort().join('-');
+          if (capturedPairs.has(pairKey)) continue;
+          capturedPairs.add(pairKey);
 
-        parsedAlerts.push({
-          medication: drugA,
-          interactions: [{
-            interactingDrug: drugB,
-            severity: severity,
-            description: description
-          }]
-        });
+          const nihSeverity = pair.severity ?? '';
+          const nihDescription = pair.description ?? 'Potential drug interaction detected.';
+          const severity: 'critical' | 'caution' = nihSeverity.toLowerCase() === 'high' ? 'critical' : 'caution';
+
+          const plainEnglishWarning = await simplifyWarningForPatient(drugA, drugB, nihDescription);
+          warnings.push({ drugA, drugB, severity, plainEnglishWarning });
+        }
       }
     }
 
-    return parsedAlerts;
-  } catch (apiError) {
-    console.error("Failed to fetch live clinical alerts from NIH database:", apiError);
+    return warnings;
+  } catch (error) {
+    console.error('Core NIH database parsing exception:', error);
     return [];
   }
 }
 
-// 3. Master Controller Route
+// ─────────────────────────────────────────────────────────────
+// CONTROL ROUTE ROUTING AGENT
+// ─────────────────────────────────────────────────────────────
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const targetImage = body.imageData || body.image;
+    const base64Image: string | undefined = body.imageData ?? body.image;
 
-    if (!targetImage) {
-      return NextResponse.json({ error: 'No data matrix captured' }, { status: 400 });
+    if (!base64Image) {
+      return NextResponse.json({ error: 'Missing image stream payload.' }, { status: 400 });
     }
 
-    // Since Groq free tier is text-based, we pass a simulated high-utility 
-    // clinical text string or OCR stream down to Groq to extract details flawlessly
-    const textExtractionPlaceholder = "Rx: Patient requires Metformin 500mg twice daily for blood sugar regulation. Also add Lisinopril 10mg once daily for hypertension control.";
-
-    // Step A: Parse and build pristine data arrays with Groq speed
-    const parsedMedications = await callGroqEngine(textExtractionPlaceholder);
-
-    // Step B: Collect drug names and check for real interactions using the open-access NIH database
-    const drugNames = parsedMedications.map(med => med.drugName);
-    const flaggedInteractions = await checkLiveInteractions(drugNames);
+    const medications = await extractMedicationsFromImage(base64Image);
+    const interactions = await checkForDrugInteractions(medications);
 
     return NextResponse.json({
-      parsedMedications,
-      flaggedInteractions,
-      verificationContext: 'GROQ LLAMA-3 + NIH LIVE GATEWAY ACTIVE',
-      timestamp: new Date().toISOString()
-    });
+      medications,
+      interactions,
+      source: 'Groq Llama-4 Scout Core Vision (AI Standard Mapping) + US Federal NIH RxNav Active Matrix',
+      scannedAt: new Date().toISOString(),
+    }, { status: 200 });
 
-  } catch (error) {
-    console.error('Core production line error:', error);
-    return NextResponse.json(
-      {
-        error: 'Failed to complete Groq analytics runtime analysis',
-        details: error instanceof Error ? error.message : 'Unknown exception'
-      },
-      { status: 500 }
-    );
+  } catch (err: any) {
+    return NextResponse.json({
+      error: 'Server error',
+      message: err.message === 'NOT_A_PRESCRIPTION' ? 'File structure could not be verified as a valid prescription layout.' : 'Internal pipeline runtime error.'
+    }, { status: 500 });
   }
 }

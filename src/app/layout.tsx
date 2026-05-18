@@ -1,35 +1,36 @@
+// src/app/layout.tsx  ← Server Component
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css";
-
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-});
+import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "SyncPharma - Clinical Intelligence Platform",
-  description: "Enterprise-grade medication adherence monitoring with AI-powered pharmaceutical interaction detection.",
+  // Fallback title used by any page that doesn't define its own
+  title: {
+    default: "RxScan AI — Prescription Scanner & Drug Interaction Checker",
+    template: "%s | SyncPharma",
+  },
+  description:
+    "AI-powered prescription scanner. Upload a photo and instantly check drug interactions, dosages, and daily schedules — in plain English.",
 };
 
-export default function RootLayout({
-  children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html
-      lang="en"
-      className={`${inter.variable} h-full antialiased`}
-      style={{ colorScheme: "dark" }}
-      suppressHydrationWarning // 🌟 THE MAGIC FIX: Prevents extensions from crashing your server hydration
-    >
-      <body className={`${inter.variable} min-h-full bg-black text-white flex flex-col selection:bg-yellow-400 selection:text-black`}>
-        {/* Main accessible wrapper ensuring full screen utilization */}
-        <div className="flex-1 w-full flex flex-col">
-          {children}
-        </div>
-      </body>
+    <html lang="en" dir="ltr">
+      <head>
+        {/* ── Preconnect to external resources for performance ── */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+
+        {/* ── DNS prefetch for the API ── */}
+        <link rel="dns-prefetch" href="https://api.anthropic.com" />
+
+        {/* ── Preload the hero font ── */}
+        <link
+          rel="preload"
+          as="style"
+          href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        />
+      </head>
+      <body>{children}</body>
     </html>
   );
 }
