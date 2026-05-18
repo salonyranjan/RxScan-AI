@@ -1,0 +1,43 @@
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Medication {
+  id        String   @id @default(cuid())
+  name      String
+  dosage    String?
+  frequency String?
+  instructions String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  schedules Schedule[]
+  interactions InteractingDrug[]
+}
+
+model Schedule {
+  id          String   @id @default(cuid())
+  medicationId String
+  time        DateTime
+  taken       Boolean  @default(false)
+  notes       String?
+
+  medication Medication @relation(fields: [medicationId], references: [id])
+
+  @@unique([medicationId, time])
+}
+
+model InteractingDrug {
+  id        String   @id @default(cuid())
+  medicationId String
+  interactingDrugName String
+  severity  String
+  description String?
+
+  medication Medication @relation(fields: [medicationId], references: [id])
+}
