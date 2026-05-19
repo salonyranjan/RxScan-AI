@@ -2,7 +2,6 @@
 
 import { useState } from "react"
 
-// ─── Types ───────────────────────────────────────────────────
 interface Interaction {
   interactingDrug: string
   severity: string
@@ -13,334 +12,213 @@ interface AlertProps {
   interactions: Array<{ medication: string; interactions: Interaction[] }>
 }
 
-// ─── Config ──────────────────────────────────────────────────
-const SEVERITY_CONFIG: Record<string, {
-  label: string
-  rank: number
-  barColor: string
-  badgeBg: string
-  badgeBorder: string
-  badgeText: string
-  iconBg: string
-  iconBorder: string
-  iconColor: string
-  cardBorder: string
-  cardAccent: string
-  dotColor: string
+const SEV: Record<string, {
+  rank: number; label: string; glyph: string;
+  accent: string; accentAlpha: string; accentBorder: string;
+  textColor: string; barPct: string;
 }> = {
   high: {
-    label: "Critical",
-    rank: 3,
-    barColor: "#ef4444",
-    badgeBg: "rgba(239,68,68,0.08)",
-    badgeBorder: "rgba(239,68,68,0.25)",
-    badgeText: "#f87171",
-    iconBg: "rgba(239,68,68,0.08)",
-    iconBorder: "rgba(239,68,68,0.2)",
-    iconColor: "#ef4444",
-    cardBorder: "rgba(239,68,68,0.18)",
-    cardAccent: "#ef4444",
-    dotColor: "#ef4444",
+    rank: 3, label: "Critical", glyph: "▲", barPct: "100%",
+    accent: "#ff4d4d", accentAlpha: "rgba(255,77,77,0.07)",
+    accentBorder: "rgba(255,77,77,0.18)", textColor: "#ff8080",
   },
   moderate: {
-    label: "Moderate",
-    rank: 2,
-    barColor: "#f59e0b",
-    badgeBg: "rgba(245,158,11,0.08)",
-    badgeBorder: "rgba(245,158,11,0.25)",
-    badgeText: "#fbbf24",
-    iconBg: "rgba(245,158,11,0.08)",
-    iconBorder: "rgba(245,158,11,0.2)",
-    iconColor: "#f59e0b",
-    cardBorder: "rgba(245,158,11,0.18)",
-    cardAccent: "#f59e0b",
-    dotColor: "#f59e0b",
+    rank: 2, label: "Moderate", glyph: "◆", barPct: "66%",
+    accent: "#f0a832", accentAlpha: "rgba(240,168,50,0.07)",
+    accentBorder: "rgba(240,168,50,0.18)", textColor: "#f5c96a",
   },
   low: {
-    label: "Minor",
-    rank: 1,
-    barColor: "#3b82f6",
-    badgeBg: "rgba(59,130,246,0.08)",
-    badgeBorder: "rgba(59,130,246,0.25)",
-    badgeText: "#60a5fa",
-    iconBg: "rgba(59,130,246,0.08)",
-    iconBorder: "rgba(59,130,246,0.2)",
-    iconColor: "#3b82f6",
-    cardBorder: "rgba(59,130,246,0.18)",
-    cardAccent: "#3b82f6",
-    dotColor: "#3b82f6",
+    rank: 1, label: "Minor", glyph: "●", barPct: "33%",
+    accent: "#3d85f7", accentAlpha: "rgba(61,133,247,0.07)",
+    accentBorder: "rgba(61,133,247,0.18)", textColor: "#7aaaf7",
   },
 }
 
-const getSeverityConfig = (sev: string) =>
-  SEVERITY_CONFIG[sev.toLowerCase()] ?? SEVERITY_CONFIG.low
+const cfg = (s: string) => SEV[s.toLowerCase()] ?? SEV.low
 
-// ─── Icons ───────────────────────────────────────────────────
-const IconCritical = () => (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-    <path d="M7 1L13 12H1L7 1Z" stroke="currentColor" strokeWidth="1.4" strokeLinejoin="round"/>
-    <path d="M7 5.5V8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-    <circle cx="7" cy="10" r="0.7" fill="currentColor"/>
-  </svg>
-)
-const IconCaution = () => (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-    <circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.4"/>
-    <path d="M7 4.5V7.5" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-    <circle cx="7" cy="9.5" r="0.7" fill="currentColor"/>
-  </svg>
-)
-const IconInfo = () => (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-    <circle cx="7" cy="7" r="6" stroke="currentColor" strokeWidth="1.4"/>
-    <path d="M7 6.5V10" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
-    <circle cx="7" cy="4.5" r="0.7" fill="currentColor"/>
-  </svg>
-)
-const IconChevron = ({ open }: { open: boolean }) => (
-  <svg width="14" height="14" viewBox="0 0 14 14" fill="none"
-    style={{ transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.25s ease" }}>
-    <path d="M3 5L7 9L11 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-  </svg>
-)
-const IconPill = () => (
-  <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-    <rect x="1.5" y="4" width="10" height="5" rx="2.5" stroke="currentColor" strokeWidth="1.3"/>
-    <line x1="6.5" y1="4" x2="6.5" y2="9" stroke="currentColor" strokeWidth="1.3"/>
-  </svg>
-)
-
-const SeverityIcon = ({ sev }: { sev: string }) => {
-  const s = sev.toLowerCase()
-  if (s === "high") return <IconCritical />
-  if (s === "moderate") return <IconCaution />
-  return <IconInfo />
-}
-
-// ─── Sub-components ──────────────────────────────────────────
-function SeverityBar({ severity }: { severity: string }) {
-  const cfg = getSeverityConfig(severity)
-  const widths: Record<number, string> = { 3: "100%", 2: "66%", 1: "33%" }
-  const w = widths[cfg.rank] ?? "33%"
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-      <div style={{ width: 44, height: 3, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden" }}>
-        <div style={{ height: "100%", width: w, background: cfg.barColor, borderRadius: 2,
-          transition: "width 0.6s cubic-bezier(.4,0,.2,1)" }} />
-      </div>
-    </div>
-  )
-}
-
-function InteractionRow({ item, index }: { item: Interaction; index: number }) {
-  const [expanded, setExpanded] = useState(false)
-  const cfg = getSeverityConfig(item.severity)
+function InteractionRow({ item, i }: { item: Interaction; i: number }) {
+  const [open, setOpen] = useState(false)
+  const c = cfg(item.severity)
 
   return (
-    <div
-      style={{
-        background: "rgba(255,255,255,0.02)",
-        border: `1px solid ${cfg.cardBorder}`,
-        borderRadius: 10,
-        overflow: "hidden",
-        animationDelay: `${index * 60}ms`,
-        animationFillMode: "both",
-      }}
-      className="alert-row-anim"
-    >
-      {/* Row header */}
+    <div style={{
+      border: `1px solid ${open ? c.accentBorder : "rgba(255,255,255,0.05)"}`,
+      borderRadius: 10, overflow: "hidden",
+      background: open ? c.accentAlpha : "transparent",
+      transition: "border-color 0.2s, background 0.2s",
+      animation: `rowIn 0.3s ${i * 55}ms both`,
+    }}>
       <button
-        onClick={() => setExpanded(e => !e)}
+        onClick={() => setOpen(o => !o)}
         style={{
-          width: "100%", display: "flex", alignItems: "center", gap: 10,
-          padding: "11px 14px", background: "transparent", border: "none",
-          cursor: "pointer", textAlign: "left", fontFamily: "inherit",
+          width: "100%", display: "flex", alignItems: "center", gap: 11,
+          padding: "11px 14px", background: "none", border: "none",
+          cursor: "pointer", fontFamily: "'DM Mono', monospace", textAlign: "left",
         }}
       >
-        {/* Severity icon */}
+        {/* Severity glyph */}
         <div style={{
-          width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-          background: cfg.iconBg, border: `1px solid ${cfg.iconBorder}`,
+          width: 30, height: 30, borderRadius: 8, flexShrink: 0,
+          border: `1px solid ${c.accentBorder}`, background: c.accentAlpha,
           display: "flex", alignItems: "center", justifyContent: "center",
-          color: cfg.iconColor,
+          fontSize: 11, color: c.accent,
         }}>
-          <SeverityIcon sev={item.severity} />
+          {c.glyph}
         </div>
 
-        {/* Drug name */}
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            <span style={{ fontSize: 13, fontWeight: 600, color: "#f1f5f9", letterSpacing: "-0.2px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 5 }}>
+            <span style={{
+              fontFamily: "'Syne', sans-serif", fontSize: 13, fontWeight: 700,
+              color: "#f0f4f8", letterSpacing: "-0.2px",
+            }}>
               {item.interactingDrug}
             </span>
             <span style={{
-              fontSize: 10, fontWeight: 700, letterSpacing: "0.7px", textTransform: "uppercase",
-              background: cfg.badgeBg, border: `1px solid ${cfg.badgeBorder}`,
-              color: cfg.badgeText, borderRadius: 100, padding: "2px 8px",
+              fontSize: 9, fontWeight: 600, letterSpacing: "1.2px",
+              textTransform: "uppercase", color: c.textColor,
+              background: c.accentAlpha, border: `1px solid ${c.accentBorder}`,
+              borderRadius: 100, padding: "2px 8px",
             }}>
-              {cfg.label}
+              {c.label}
             </span>
           </div>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 4 }}>
-            <SeverityBar severity={item.severity} />
-            <span style={{ fontSize: 10, color: "rgba(148,163,184,0.5)" }}>
-              {cfg.rank === 3 ? "Seek medical advice" : cfg.rank === 2 ? "Monitor closely" : "Low risk"}
-            </span>
+          {/* Severity bar */}
+          <div style={{
+            height: 2, width: 52, background: "rgba(255,255,255,0.05)",
+            borderRadius: 2, overflow: "hidden",
+          }}>
+            <div style={{
+              height: "100%", width: c.barPct,
+              background: c.accent, borderRadius: 2,
+            }} />
           </div>
         </div>
 
-        {/* Expand chevron */}
-        <div style={{ color: "rgba(148,163,184,0.4)", flexShrink: 0 }}>
-          <IconChevron open={expanded} />
-        </div>
+        <svg
+          width="12" height="12" viewBox="0 0 12 12" fill="none"
+          style={{ flexShrink: 0, color: "rgba(148,163,184,0.35)", transition: "transform 0.22s", transform: open ? "rotate(180deg)" : "none" }}
+        >
+          <path d="M2 4L6 8L10 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
       </button>
 
-      {/* Expanded description */}
-      <div style={{
-        overflow: "hidden",
-        maxHeight: expanded ? 200 : 0,
-        transition: "max-height 0.3s cubic-bezier(.4,0,.2,1)",
-      }}>
-        <div style={{
-          padding: "0 14px 14px 52px",
-          borderTop: `1px solid rgba(255,255,255,0.04)`,
-          paddingTop: 10,
+      {/* Expanded */}
+      <div style={{ maxHeight: open ? 180 : 0, overflow: "hidden", transition: "max-height 0.28s cubic-bezier(.4,0,.2,1)" }}>
+        <p style={{
+          margin: 0, padding: "0 14px 13px 55px",
+          fontSize: 11.5, color: "rgba(148,163,184,0.75)", lineHeight: 1.7,
+          fontFamily: "'DM Sans', sans-serif",
+          borderTop: "1px solid rgba(255,255,255,0.04)", paddingTop: 10,
         }}>
-          <p style={{
-            fontSize: 12, color: "rgba(148,163,184,0.85)", lineHeight: 1.65,
-            fontFamily: "'DM Sans', sans-serif",
-          }}>
-            {item.description}
-          </p>
-        </div>
+          {item.description}
+        </p>
       </div>
     </div>
   )
 }
 
-function MedicationCard({ med, index }: { item: typeof med; index: number; med: AlertProps["interactions"][number] }) {
-  const [collapsed, setCollapsed] = useState(false)
-
-  // Sort: critical first
-  const sorted = [...med.interactions].sort(
-    (a, b) => (getSeverityConfig(b.severity).rank) - (getSeverityConfig(a.severity).rank)
-  )
-
-  const highestSev = sorted[0] ? getSeverityConfig(sorted[0].severity) : getSeverityConfig("low")
-  const critCount  = sorted.filter(i => i.severity.toLowerCase() === "high").length
-  const modCount   = sorted.filter(i => i.severity.toLowerCase() === "moderate").length
+function MedCard({ med, idx }: { med: AlertProps["interactions"][number]; idx: number }) {
+  const [closed, setClosed] = useState(false)
+  const sorted = [...med.interactions].sort((a, b) => cfg(b.severity).rank - cfg(a.severity).rank)
+  const top = sorted[0] ? cfg(sorted[0].severity) : cfg("low")
+  const critN = sorted.filter(i => i.severity.toLowerCase() === "high").length
+  const modN  = sorted.filter(i => i.severity.toLowerCase() === "moderate").length
 
   return (
-    <div
-      style={{
-        background: "linear-gradient(160deg, #0f1117 0%, #0d0e13 100%)",
-        border: `1px solid rgba(255,255,255,0.07)`,
-        borderRadius: 16,
-        overflow: "hidden",
-        position: "relative",
-        animationDelay: `${index * 100}ms`,
-        animationFillMode: "both",
-      }}
-      className="med-card-anim"
-    >
-      {/* Left accent bar */}
+    <div style={{
+      background: "#0c0f15", border: "1px solid rgba(255,255,255,0.07)",
+      borderRadius: 16, overflow: "hidden", position: "relative",
+      animation: `cardIn 0.4s ${idx * 90}ms both`,
+    }}>
+      {/* Left accent stripe */}
       <div style={{
-        position: "absolute", left: 0, top: 0, bottom: 0, width: 3,
-        background: `linear-gradient(180deg, ${highestSev.cardAccent} 0%, transparent 100%)`,
-        borderRadius: "16px 0 0 16px",
+        position: "absolute", left: 0, top: 0, bottom: 0, width: 2,
+        background: `linear-gradient(180deg, ${top.accent} 0%, transparent 100%)`,
       }} />
 
-      {/* Card header */}
+      {/* Header */}
       <div style={{
         display: "flex", alignItems: "center", gap: 12,
-        padding: "16px 18px 14px 20px",
-        borderBottom: collapsed ? "none" : "1px solid rgba(255,255,255,0.05)",
+        padding: "16px 16px 15px 18px",
+        borderBottom: closed ? "none" : "1px solid rgba(255,255,255,0.05)",
       }}>
-        {/* Pill icon */}
+        {/* Drug letter avatar */}
         <div style={{
-          width: 36, height: 36, borderRadius: 10, flexShrink: 0,
-          background: highestSev.iconBg, border: `1px solid ${highestSev.iconBorder}`,
+          width: 38, height: 38, borderRadius: 10, flexShrink: 0,
+          background: top.accentAlpha, border: `1px solid ${top.accentBorder}`,
           display: "flex", alignItems: "center", justifyContent: "center",
-          color: highestSev.iconColor,
+          fontFamily: "'Syne', sans-serif", fontSize: 16, fontWeight: 800, color: top.accent,
         }}>
-          <IconPill />
+          {med.medication.charAt(0)}
         </div>
 
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 7, flexWrap: "wrap", marginBottom: 4 }}>
             <h3 style={{
-              fontSize: 15, fontWeight: 700, color: "#f8fafc",
-              letterSpacing: "-0.4px", margin: 0,
-              fontFamily: "'Syne', sans-serif",
+              fontFamily: "'Syne', sans-serif", fontSize: 15, fontWeight: 700,
+              color: "#f0f4f8", margin: 0, letterSpacing: "-0.4px",
             }}>
               {med.medication}
             </h3>
-            {/* Count chips */}
-            {critCount > 0 && (
+            {critN > 0 && (
               <span style={{
-                fontSize: 10, fontWeight: 700, letterSpacing: "0.5px",
-                background: "rgba(239,68,68,0.08)", border: "1px solid rgba(239,68,68,0.2)",
-                color: "#f87171", borderRadius: 100, padding: "2px 8px",
-              }}>
-                {critCount} critical
-              </span>
+                fontSize: 9, fontWeight: 700, letterSpacing: "1px", textTransform: "uppercase",
+                background: "rgba(255,77,77,0.08)", border: "1px solid rgba(255,77,77,0.2)",
+                color: "#ff8080", borderRadius: 100, padding: "2px 8px",
+              }}>{critN}× critical</span>
             )}
-            {modCount > 0 && (
+            {modN > 0 && (
               <span style={{
-                fontSize: 10, fontWeight: 700, letterSpacing: "0.5px",
-                background: "rgba(245,158,11,0.08)", border: "1px solid rgba(245,158,11,0.2)",
-                color: "#fbbf24", borderRadius: 100, padding: "2px 8px",
-              }}>
-                {modCount} moderate
-              </span>
+                fontSize: 9, fontWeight: 700, letterSpacing: "1px", textTransform: "uppercase",
+                background: "rgba(240,168,50,0.08)", border: "1px solid rgba(240,168,50,0.2)",
+                color: "#f5c96a", borderRadius: 100, padding: "2px 8px",
+              }}>{modN}× moderate</span>
             )}
           </div>
-          <p style={{ fontSize: 11, color: "rgba(100,116,139,0.8)", margin: "3px 0 0", letterSpacing: "0.3px" }}>
-            {med.interactions.length} interaction{med.interactions.length !== 1 ? "s" : ""} detected
+          <p style={{
+            margin: 0, fontFamily: "'DM Mono', monospace", fontSize: 10,
+            color: "rgba(100,116,139,0.7)", letterSpacing: "0.3px",
+          }}>
+            {med.interactions.length} interaction{med.interactions.length !== 1 ? "s" : ""} flagged
           </p>
         </div>
 
-        {/* Collapse toggle */}
         <button
-          onClick={() => setCollapsed(c => !c)}
+          onClick={() => setClosed(c => !c)}
           style={{
             width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-            background: "rgba(255,255,255,0.04)", border: "1px solid rgba(255,255,255,0.07)",
+            background: "rgba(255,255,255,0.03)", border: "1px solid rgba(255,255,255,0.07)",
             display: "flex", alignItems: "center", justifyContent: "center",
-            color: "rgba(148,163,184,0.5)", cursor: "pointer",
+            cursor: "pointer", color: "rgba(148,163,184,0.4)",
           }}
         >
-          <IconChevron open={!collapsed} />
+          <svg width="11" height="11" viewBox="0 0 11 11" fill="none"
+            style={{ transition: "transform 0.22s", transform: closed ? "rotate(-90deg)" : "none" }}
+          >
+            <path d="M1.5 4L5.5 8L9.5 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+          </svg>
         </button>
       </div>
 
-      {/* Interactions list */}
-      <div style={{
-        overflow: "hidden",
-        maxHeight: collapsed ? 0 : 1000,
-        transition: "max-height 0.35s cubic-bezier(.4,0,.2,1)",
-      }}>
-        <div style={{ padding: "12px 16px 16px" }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {sorted.map((item, i) => (
-              <InteractionRow key={i} item={item} index={i} />
-            ))}
+      {/* Interaction list */}
+      <div style={{ maxHeight: closed ? 0 : 800, overflow: "hidden", transition: "max-height 0.35s cubic-bezier(.4,0,.2,1)" }}>
+        <div style={{ padding: "12px 14px 14px" }}>
+          <div style={{ display: "flex", flexDirection: "column", gap: 7 }}>
+            {sorted.map((item, i) => <InteractionRow key={i} item={item} i={i} />)}
           </div>
-
-          {/* Footer note */}
           <div style={{
-            marginTop: 12, paddingTop: 12,
+            marginTop: 12, paddingTop: 11,
             borderTop: "1px solid rgba(255,255,255,0.04)",
-            display: "flex", alignItems: "flex-start", gap: 8,
+            display: "flex", gap: 8,
           }}>
-            <div style={{
-              width: 14, height: 14, marginTop: 1, flexShrink: 0,
-              color: "rgba(100,116,139,0.5)",
-            }}>
-              <IconInfo />
-            </div>
-            <p style={{ fontSize: 10, color: "rgba(100,116,139,0.55)", lineHeight: 1.6, margin: 0 }}>
-              Consult your pharmacist or prescribing physician before adjusting any medications based on these interactions.
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, marginTop: 1, color: "rgba(100,116,139,0.4)" }}>
+              <circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1.2"/>
+              <path d="M6 5.5V9" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+              <circle cx="6" cy="3.5" r="0.6" fill="currentColor"/>
+            </svg>
+            <p style={{ margin: 0, fontSize: 10, color: "rgba(100,116,139,0.5)", lineHeight: 1.65, fontFamily: "'DM Sans', sans-serif" }}>
+              Consult your pharmacist before adjusting any medication based on these interactions.
             </p>
           </div>
         </div>
@@ -349,53 +227,48 @@ function MedicationCard({ med, index }: { item: typeof med; index: number; med: 
   )
 }
 
-// ─── Main component ──────────────────────────────────────────
 export default function Alerts({ interactions }: AlertProps) {
-  const css = `
-    @import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700;800&family=DM+Sans:wght@300;400;500&display=swap');
-    .alert-row-anim { animation: row-in 0.3s cubic-bezier(.4,0,.2,1) both; }
-    .med-card-anim  { animation: card-in 0.4s cubic-bezier(.4,0,.2,1) both; }
-    @keyframes row-in  { from { opacity:0; transform:translateX(-6px); } to { opacity:1; transform:none; } }
-    @keyframes card-in { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:none; } }
-  `
+  if (!interactions?.length) return null
 
-  if (!interactions || interactions.length === 0) return null
+  const totalFlags = interactions.reduce((t, m) => t + m.interactions.length, 0)
+  const hasCritical = interactions.some(m => m.interactions.some(i => i.severity.toLowerCase() === "high"))
 
   return (
     <>
-      <style>{css}</style>
-      <div style={{ fontFamily: "'DM Sans', sans-serif", display: "flex", flexDirection: "column", gap: 12 }}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@700;800&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500&display=swap');
+        @keyframes rowIn  { from { opacity:0; transform:translateX(-8px); } to { opacity:1; transform:none; } }
+        @keyframes cardIn { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }
+        @keyframes dotBlink { 0%,100%{opacity:1} 50%{opacity:0.25} }
+      `}</style>
 
-        {/* Header row */}
-        <div style={{
-          display: "flex", alignItems: "center", justifyContent: "space-between",
-          marginBottom: 4,
-        }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 14, fontFamily: "'DM Sans', sans-serif" }}>
+        {/* Header bar */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
             <div style={{
-              width: 6, height: 6, borderRadius: "50%", background: "#ef4444",
-              boxShadow: "0 0 8px rgba(239,68,68,0.6)",
-              animation: "pulse-dot 2s ease-in-out infinite",
+              width: 7, height: 7, borderRadius: "50%",
+              background: hasCritical ? "#ff4d4d" : "#f0a832",
+              boxShadow: `0 0 10px ${hasCritical ? "rgba(255,77,77,0.7)" : "rgba(240,168,50,0.7)"}`,
+              animation: "dotBlink 2s ease-in-out infinite",
             }} />
-            <style>{`@keyframes pulse-dot { 0%,100%{opacity:1}50%{opacity:0.4} }`}</style>
             <span style={{
-              fontSize: 11, fontWeight: 700, letterSpacing: "1.2px",
-              textTransform: "uppercase", color: "rgba(148,163,184,0.6)",
+              fontFamily: "'DM Mono', monospace", fontSize: 10, fontWeight: 500,
+              letterSpacing: "1.8px", textTransform: "uppercase", color: "rgba(148,163,184,0.5)",
             }}>
               Drug Interactions
             </span>
           </div>
           <span style={{
-            fontSize: 11, color: "rgba(100,116,139,0.5)", letterSpacing: "0.3px",
+            fontFamily: "'DM Mono', monospace", fontSize: 10,
+            color: "rgba(100,116,139,0.5)", letterSpacing: "0.5px",
           }}>
-            {interactions.reduce((t, m) => t + m.interactions.length, 0)} flagged
+            {totalFlags} flagged
           </span>
         </div>
 
         {/* Cards */}
-        {interactions.map((med, idx) => (
-          <MedicationCard key={idx} med={med} index={idx} item={med} />
-        ))}
+        {interactions.map((med, idx) => <MedCard key={idx} med={med} idx={idx} />)}
       </div>
     </>
   )

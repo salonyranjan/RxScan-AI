@@ -1,6 +1,5 @@
 "use client"
 
-// ─── Types ───────────────────────────────────────────────────
 export interface Medication {
   drugName: string
   dosage: string
@@ -14,320 +13,226 @@ export interface TimelineProps {
   activeTab: ScheduleTab
 }
 
-// ─── Scheduling logic ─────────────────────────────────────────
-function getSlotsForFrequency(frequency: string): ScheduleTab[] {
-  const f = frequency.toLowerCase()
-  if (f.includes("three") || f.includes("3") || f.includes("every 8"))    return ["Morning", "Afternoon", "Evening"]
-  if (f.includes("twice") || f.includes("two") || f.includes("every 12"))  return ["Morning", "Evening"]
-  if (f.includes("afternoon") || f.includes("noon"))                        return ["Afternoon"]
-  if (f.includes("night") || f.includes("evening") || f.includes("bed"))   return ["Evening"]
+function getSlots(freq: string): ScheduleTab[] {
+  const f = freq.toLowerCase()
+  if (f.includes("three") || f.includes("3") || f.includes("every 8"))   return ["Morning","Afternoon","Evening"]
+  if (f.includes("twice") || f.includes("two") || f.includes("every 12")) return ["Morning","Evening"]
+  if (f.includes("afternoon") || f.includes("noon"))                       return ["Afternoon"]
+  if (f.includes("night") || f.includes("evening") || f.includes("bed"))  return ["Evening"]
   return ["Morning"]
 }
 
-// ─── Config ───────────────────────────────────────────────────
-const TAB_CONFIG = {
+const TAB = {
   Morning: {
-    time: "8:00 AM",
+    time: "08:00", period: "AM",
+    accent: "#f0a832", accentAlpha: "rgba(240,168,50,0.07)", accentBorder: "rgba(240,168,50,0.18)",
+    accentGlow: "rgba(240,168,50,0.5)", pillText: "#f5c96a",
     tip: "Take with breakfast",
-    color: "#f59e0b",
-    colorDim: "rgba(245,158,11,0.08)",
-    colorBorder: "rgba(245,158,11,0.18)",
-    colorGlow: "rgba(245,158,11,0.4)",
-    pillBg: "rgba(245,158,11,0.07)",
-    pillBorder: "rgba(245,158,11,0.18)",
-    pillText: "#fcd34d",
-    icon: SunIcon,
-    label: "Morning dose",
-    period: "AM",
+    icon: (c: string) => (
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <circle cx="7" cy="7" r="2.8" stroke={c} strokeWidth="1.3"/>
+        <path d="M7 1.5V2.8M7 11.2V12.5M1.5 7H2.8M11.2 7H12.5M3.4 3.4L4.3 5.3M9.7 9.7L10.6 8.8M10.6 3.4L9.7 4.3M4.3 8.8L3.4 9.7" stroke={c} strokeWidth="1.2" strokeLinecap="round"/>
+      </svg>
+    ),
   },
   Afternoon: {
-    time: "1:00 PM",
+    time: "13:00", period: "PM",
+    accent: "#3d85f7", accentAlpha: "rgba(61,133,247,0.07)", accentBorder: "rgba(61,133,247,0.18)",
+    accentGlow: "rgba(61,133,247,0.5)", pillText: "#7aaaf7",
     tip: "Take with water",
-    color: "#3b82f6",
-    colorDim: "rgba(59,130,246,0.08)",
-    colorBorder: "rgba(59,130,246,0.18)",
-    colorGlow: "rgba(59,130,246,0.4)",
-    pillBg: "rgba(59,130,246,0.07)",
-    pillBorder: "rgba(59,130,246,0.18)",
-    pillText: "#93c5fd",
-    icon: SunsetIcon,
-    label: "Afternoon dose",
-    period: "PM",
+    icon: (c: string) => (
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M1.5 10a5.5 5.5 0 0 1 11 0" stroke={c} strokeWidth="1.3" strokeLinecap="round"/>
+        <path d="M7 1.5V3M3 4L4 4.9M11 4L10 4.9M1.5 8H3M11 8H12.5" stroke={c} strokeWidth="1.2" strokeLinecap="round"/>
+        <line x1="3" y1="11.5" x2="11" y2="11.5" stroke={c} strokeWidth="1.3" strokeLinecap="round"/>
+      </svg>
+    ),
   },
   Evening: {
-    time: "8:00 PM",
+    time: "20:00", period: "PM",
+    accent: "#a78bfa", accentAlpha: "rgba(167,139,250,0.07)", accentBorder: "rgba(167,139,250,0.18)",
+    accentGlow: "rgba(167,139,250,0.5)", pillText: "#c4b5fd",
     tip: "Take with dinner",
-    color: "#8b5cf6",
-    colorDim: "rgba(139,92,246,0.08)",
-    colorBorder: "rgba(139,92,246,0.18)",
-    colorGlow: "rgba(139,92,246,0.4)",
-    pillBg: "rgba(139,92,246,0.07)",
-    pillBorder: "rgba(139,92,246,0.18)",
-    pillText: "#c4b5fd",
-    icon: MoonIcon,
-    label: "Evening dose",
-    period: "PM",
+    icon: (c: string) => (
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <path d="M11 8.5A5 5 0 0 1 5 2.5a5 5 0 1 0 6 6Z" stroke={c} strokeWidth="1.3" strokeLinejoin="round"/>
+        <path d="M9.5 1.5L10.2 2.5M11 3.5L12 3.2M11.5 5L12.5 5.5" stroke={c} strokeWidth="1.2" strokeLinecap="round"/>
+      </svg>
+    ),
   },
 }
 
-// ─── Icons ────────────────────────────────────────────────────
-function SunIcon({ color }: { color: string }) {
-  return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-      <circle cx="6.5" cy="6.5" r="2.5" stroke={color} strokeWidth="1.3"/>
-      <line x1="6.5" y1="1" x2="6.5" y2="2.2" stroke={color} strokeWidth="1.3" strokeLinecap="round"/>
-      <line x1="6.5" y1="10.8" x2="6.5" y2="12" stroke={color} strokeWidth="1.3" strokeLinecap="round"/>
-      <line x1="1" y1="6.5" x2="2.2" y2="6.5" stroke={color} strokeWidth="1.3" strokeLinecap="round"/>
-      <line x1="10.8" y1="6.5" x2="12" y2="6.5" stroke={color} strokeWidth="1.3" strokeLinecap="round"/>
-      <line x1="2.8" y1="2.8" x2="3.6" y2="3.6" stroke={color} strokeWidth="1.3" strokeLinecap="round"/>
-      <line x1="9.4" y1="9.4" x2="10.2" y2="10.2" stroke={color} strokeWidth="1.3" strokeLinecap="round"/>
-      <line x1="10.2" y1="2.8" x2="9.4" y2="3.6" stroke={color} strokeWidth="1.3" strokeLinecap="round"/>
-      <line x1="3.6" y1="9.4" x2="2.8" y2="10.2" stroke={color} strokeWidth="1.3" strokeLinecap="round"/>
-    </svg>
-  )
-}
-
-function SunsetIcon({ color }: { color: string }) {
-  return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-      <path d="M1.5 9.5a5 5 0 0 1 10 0" stroke={color} strokeWidth="1.3" strokeLinecap="round"/>
-      <line x1="6.5" y1="1" x2="6.5" y2="2.5" stroke={color} strokeWidth="1.3" strokeLinecap="round"/>
-      <line x1="1.8" y1="4.3" x2="2.9" y2="5" stroke={color} strokeWidth="1.3" strokeLinecap="round"/>
-      <line x1="11.2" y1="4.3" x2="10.1" y2="5" stroke={color} strokeWidth="1.3" strokeLinecap="round"/>
-      <line x1="3" y1="11" x2="10" y2="11" stroke={color} strokeWidth="1.3" strokeLinecap="round"/>
-    </svg>
-  )
-}
-
-function MoonIcon({ color }: { color: string }) {
-  return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-      <path d="M10.5 8.5A5 5 0 0 1 4.5 2.5a5 5 0 1 0 6 6z" stroke={color} strokeWidth="1.3" strokeLinejoin="round"/>
-    </svg>
-  )
-}
-
-function PillIcon({ color }: { color: string }) {
-  return (
-    <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-      <rect x="1.5" y="4.5" width="10" height="4" rx="2" stroke={color} strokeWidth="1.3"/>
-      <line x1="6.5" y1="4.5" x2="6.5" y2="8.5" stroke={color} strokeWidth="1.3"/>
-    </svg>
-  )
-}
-
-function ClockIcon() {
-  return (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-      <circle cx="9" cy="9" r="7" stroke="rgba(74,84,104,0.6)" strokeWidth="1.3"/>
-      <path d="M9 5.5V9l2.5 2" stroke="rgba(74,84,104,0.6)" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  )
-}
-
-// ─── CSS ─────────────────────────────────────────────────────
-const css = `
-  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700&family=DM+Sans:wght@400;500&family=Geist+Mono:wght@500&display=swap');
-
-  .tl-root { font-family: 'DM Sans', sans-serif; }
-
-  .tl-empty {
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    padding: 36px 20px; gap: 8px; text-align: center;
-  }
-  .tl-empty-icon {
-    width: 40px; height: 40px; border-radius: 50%;
-    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
-    display: flex; align-items: center; justify-content: center; margin-bottom: 4px;
-  }
-  .tl-empty-title { font-size: 13px; font-weight: 500; color: rgba(100,116,139,0.7); }
-  .tl-empty-sub   { font-size: 11px; color: rgba(74,84,104,0.6); }
-
-  .tl-header {
-    display: flex; align-items: center; justify-content: space-between;
-    margin-bottom: 14px;
-  }
-  .tl-header-left { display: flex; align-items: center; gap: 7px; }
-  .tl-header-label { font-size: 10px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: rgba(100,116,139,0.6); }
-  .tl-count-badge {
-    font-size: 10px; font-weight: 700; font-family: 'Geist Mono', monospace;
-    border-radius: 100px; padding: 2px 8px;
-  }
-
-  .tl-track { position: relative; display: flex; flex-direction: column; }
-
-  .tl-row {
-    display: flex; align-items: stretch; gap: 0;
-    opacity: 0; transform: translateX(-6px);
-    transition: opacity 0.3s ease, transform 0.3s ease;
-    position: relative;
-  }
-  .tl-row.visible { opacity: 1; transform: none; }
-
-  /* Left time column */
-  .tl-time-col {
-    width: 68px; flex-shrink: 0;
-    display: flex; flex-direction: column; align-items: flex-end;
-    padding: 12px 12px 12px 0; gap: 3px;
-  }
-  .tl-time-val {
-    font-size: 11px; font-weight: 600; font-family: 'Geist Mono', monospace;
-    line-height: 1;
-  }
-  .tl-period { font-size: 9px; font-weight: 600; letter-spacing: 0.5px; opacity: 0.6; }
-
-  /* Vertical spine */
-  .tl-spine-col { width: 24px; flex-shrink: 0; display: flex; flex-direction: column; align-items: center; position: relative; }
-  .tl-spine-dot { width: 8px; height: 8px; border-radius: 50%; margin-top: 14px; flex-shrink: 0; position: relative; z-index: 1; }
-  .tl-spine-line { flex: 1; width: 1px; margin-top: 2px; }
-  .tl-row:last-child .tl-spine-line { display: none; }
-
-  /* Content */
-  .tl-content-col {
-    flex: 1; min-width: 0; padding: 10px 0 14px 10px;
-  }
-  .tl-card {
-    display: flex; align-items: center; gap: 10px;
-    background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.05);
-    border-radius: 10px; padding: 10px 12px;
-    transition: border-color 0.2s, background 0.2s;
-    cursor: default;
-  }
-  .tl-card:hover { background: rgba(255,255,255,0.04); }
-
-  .tl-pill-icon {
-    width: 30px; height: 30px; border-radius: 8px; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-  }
-  .tl-drug-name {
-    font-size: 12.5px; font-weight: 600; color: #e2e8f0;
-    letter-spacing: -0.2px; line-height: 1; margin-bottom: 3px;
-    font-family: 'Syne', sans-serif;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  .tl-drug-meta { font-size: 11px; color: rgba(100,116,139,0.7); line-height: 1; }
-  .tl-dose-badge {
-    margin-left: auto; flex-shrink: 0;
-    font-size: 10px; font-weight: 700; font-family: 'Geist Mono', monospace;
-    border-radius: 7px; padding: 3px 9px; letter-spacing: 0.3px;
-  }
-
-  .tl-tip-row {
-    margin-top: 6px; display: flex; align-items: center; gap: 5px;
-    font-size: 10px; color: rgba(100,116,139,0.5);
-  }
-  .tl-tip-dot { width: 3px; height: 3px; border-radius: 50%; background: rgba(100,116,139,0.3); flex-shrink: 0; }
-`
-
-// ─── Component ────────────────────────────────────────────────
 export default function Timeline({ prescription, activeTab }: TimelineProps) {
-  const cfg = TAB_CONFIG[activeTab]
-  const IconComp = cfg.icon
-
-  const scheduled = prescription.filter(med =>
-    getSlotsForFrequency(med.frequency).includes(activeTab)
-  )
+  const cfg = TAB[activeTab]
+  const scheduled = prescription.filter(m => getSlots(m.frequency).includes(activeTab))
 
   return (
     <>
-      <style>{css}</style>
-      <div className="tl-root">
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Syne:wght@600;700&family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500&display=swap');
+        @keyframes tl-in { from { opacity:0; transform:translateX(-10px); } to { opacity:1; transform:none; } }
+        .tl-card-inner {
+          display:flex; align-items:center; gap:11px;
+          background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.05);
+          border-radius:10px; padding:10px 13px; cursor:default;
+          transition:border-color 0.18s, background 0.18s;
+        }
+        .tl-card-inner:hover {
+          border-color:var(--tl-accent-border);
+          background:var(--tl-accent-alpha);
+        }
+      `}</style>
 
-        {/* Empty state */}
+      <div style={{ fontFamily: "'DM Sans', sans-serif" }}>
         {scheduled.length === 0 ? (
-          <div className="tl-empty">
-            <div className="tl-empty-icon"><ClockIcon /></div>
-            <p className="tl-empty-title">No medications this {activeTab.toLowerCase()}</p>
-            <p className="tl-empty-sub">Enjoy your break ✦</p>
+          /* Empty state */
+          <div style={{
+            display: "flex", flexDirection: "column", alignItems: "center",
+            justifyContent: "center", padding: "40px 20px", gap: 10, textAlign: "center",
+          }}>
+            <div style={{
+              width: 44, height: 44, borderRadius: "50%",
+              background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.06)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              color: "rgba(74,84,104,0.5)",
+            }}>
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <circle cx="9" cy="9" r="7" stroke="currentColor" strokeWidth="1.3"/>
+                <path d="M9 5.5V9l2.5 2" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </div>
+            <p style={{ margin: 0, fontSize: 13, color: "rgba(100,116,139,0.65)", fontWeight: 400 }}>
+              No medications scheduled for {activeTab.toLowerCase()}
+            </p>
+            <p style={{ margin: 0, fontSize: 11, color: "rgba(74,84,104,0.45)" }}>Rest well ✦</p>
           </div>
         ) : (
           <>
-            {/* Header */}
-            <div className="tl-header">
-              <div className="tl-header-left">
-                <IconComp color={cfg.color} />
-                <span className="tl-header-label">{cfg.label}</span>
+            {/* Time period header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                {cfg.icon(cfg.accent)}
+                <span style={{
+                  fontFamily: "'DM Mono', monospace", fontSize: 10, fontWeight: 500,
+                  letterSpacing: "1.4px", textTransform: "uppercase", color: cfg.accent, opacity: 0.8,
+                }}>
+                  {activeTab} dose
+                </span>
               </div>
-              <span
-                className="tl-count-badge"
-                style={{ background: cfg.colorDim, border: `1px solid ${cfg.colorBorder}`, color: cfg.pillText }}
-              >
+              <span style={{
+                fontFamily: "'DM Mono', monospace", fontSize: 10, fontWeight: 500,
+                background: cfg.accentAlpha, border: `1px solid ${cfg.accentBorder}`,
+                color: cfg.pillText, borderRadius: 100, padding: "2px 9px",
+              }}>
                 {scheduled.length} med{scheduled.length !== 1 ? "s" : ""}
               </span>
             </div>
 
-            {/* Timeline track */}
-            <div className="tl-track">
+            {/* Timeline rows */}
+            <div style={{ display: "flex", flexDirection: "column" }}>
               {scheduled.map((med, i) => (
                 <div
                   key={`${med.drugName}-${i}`}
-                  className="tl-row"
-                  ref={el => {
-                    if (el) setTimeout(() => el.classList.add("visible"), i * 80 + 20)
+                  style={{
+                    display: "flex", alignItems: "stretch", gap: 0,
+                    animation: `tl-in 0.3s ${i * 75}ms both`,
                   }}
                 >
-                  {/* Time */}
-                  <div className="tl-time-col">
-                    <span className="tl-time-val" style={{ color: cfg.color }}>
-                      {cfg.time.split(" ")[0]}
+                  {/* Time column */}
+                  <div style={{
+                    width: 66, flexShrink: 0, display: "flex", flexDirection: "column",
+                    alignItems: "flex-end", padding: "12px 12px 12px 0",
+                  }}>
+                    <span style={{
+                      fontFamily: "'DM Mono', monospace", fontSize: 12, fontWeight: 500,
+                      color: cfg.accent, lineHeight: 1, letterSpacing: "-0.5px",
+                    }}>
+                      {cfg.time}
                     </span>
-                    <span className="tl-period" style={{ color: cfg.color }}>{cfg.period}</span>
+                    <span style={{
+                      fontFamily: "'DM Mono', monospace", fontSize: 9, fontWeight: 500,
+                      color: cfg.accent, opacity: 0.55, letterSpacing: "0.8px", marginTop: 2,
+                    }}>
+                      {cfg.period}
+                    </span>
                   </div>
 
                   {/* Spine */}
-                  <div className="tl-spine-col">
-                    <div
-                      className="tl-spine-dot"
-                      style={{
-                        background: cfg.color,
-                        boxShadow: `0 0 6px ${cfg.colorGlow}`,
-                      }}
-                    />
-                    <div
-                      className="tl-spine-line"
-                      style={{ background: `linear-gradient(${cfg.colorBorder}, rgba(255,255,255,0.03))` }}
-                    />
+                  <div style={{
+                    width: 22, flexShrink: 0, display: "flex",
+                    flexDirection: "column", alignItems: "center",
+                  }}>
+                    <div style={{
+                      width: 9, height: 9, borderRadius: "50%", marginTop: 13,
+                      background: cfg.accent, boxShadow: `0 0 8px ${cfg.accentGlow}`,
+                      flexShrink: 0, zIndex: 1,
+                    }} />
+                    {i < scheduled.length - 1 && (
+                      <div style={{
+                        flex: 1, width: 1, marginTop: 3,
+                        background: `linear-gradient(${cfg.accentBorder}, rgba(255,255,255,0.02))`,
+                        minHeight: 16,
+                      }} />
+                    )}
                   </div>
 
-                  {/* Content */}
-                  <div className="tl-content-col">
+                  {/* Card */}
+                  <div style={{ flex: 1, minWidth: 0, padding: "9px 0 14px 10px" }}>
                     <div
-                      className="tl-card"
-                      onMouseEnter={e => {
-                        (e.currentTarget as HTMLElement).style.borderColor = cfg.colorBorder
-                        ;(e.currentTarget as HTMLElement).style.background = cfg.colorDim
-                      }}
-                      onMouseLeave={e => {
-                        (e.currentTarget as HTMLElement).style.borderColor = "rgba(255,255,255,0.05)"
-                        ;(e.currentTarget as HTMLElement).style.background = "rgba(255,255,255,0.02)"
-                      }}
+                      className="tl-card-inner"
+                      style={{
+                        // CSS variables for hover state
+                        "--tl-accent-border": cfg.accentBorder,
+                        "--tl-accent-alpha": cfg.accentAlpha,
+                      } as React.CSSProperties}
                     >
-                      <div
-                        className="tl-pill-icon"
-                        style={{ background: cfg.colorDim, border: `1px solid ${cfg.colorBorder}` }}
-                      >
-                        <PillIcon color={cfg.color} />
+                      {/* Drug letter */}
+                      <div style={{
+                        width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                        background: cfg.accentAlpha, border: `1px solid ${cfg.accentBorder}`,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        fontFamily: "'Syne', sans-serif", fontSize: 13, fontWeight: 800, color: cfg.accent,
+                      }}>
+                        {med.drugName.charAt(0).toUpperCase()}
                       </div>
 
                       <div style={{ flex: 1, minWidth: 0 }}>
-                        <div className="tl-drug-name">{med.drugName}</div>
-                        <div className="tl-drug-meta">{med.dosage || "—"}</div>
+                        <div style={{
+                          fontFamily: "'Syne', sans-serif", fontSize: 13, fontWeight: 700,
+                          color: "#edf2f7", letterSpacing: "-0.2px",
+                          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+                        }}>
+                          {med.drugName}
+                        </div>
+                        <div style={{
+                          fontFamily: "'DM Mono', monospace", fontSize: 10,
+                          color: "rgba(100,116,139,0.65)", marginTop: 2, letterSpacing: "0.2px",
+                        }}>
+                          {med.dosage || "—"}
+                        </div>
                       </div>
 
-                      <span
-                        className="tl-dose-badge"
-                        style={{
-                          background: cfg.pillBg,
-                          border: `1px solid ${cfg.pillBorder}`,
-                          color: cfg.pillText,
-                        }}
-                      >
+                      <span style={{
+                        fontFamily: "'DM Mono', monospace", fontSize: 10, fontWeight: 500,
+                        letterSpacing: "0.3px", flexShrink: 0,
+                        background: cfg.accentAlpha, border: `1px solid ${cfg.accentBorder}`,
+                        color: cfg.pillText, borderRadius: 7, padding: "3px 9px",
+                      }}>
                         1 dose
                       </span>
                     </div>
 
-                    <div className="tl-tip-row">
-                      <span className="tl-tip-dot" />
+                    {/* Tip line */}
+                    <div style={{
+                      marginTop: 5, display: "flex", alignItems: "center", gap: 5,
+                      fontFamily: "'DM Mono', monospace", fontSize: 10,
+                      color: "rgba(100,116,139,0.45)", letterSpacing: "0.2px",
+                    }}>
+                      <span style={{
+                        width: 3, height: 3, borderRadius: "50%",
+                        background: "rgba(100,116,139,0.3)", flexShrink: 0,
+                        display: "inline-block",
+                      }} />
                       {cfg.tip}
                     </div>
                   </div>
