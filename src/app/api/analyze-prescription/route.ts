@@ -1,3 +1,4 @@
+//
 /**
  * ============================================================
  * PRESCRIPTION SCANNER API — route.ts
@@ -213,10 +214,7 @@ async function checkForDrugInteractions(
     for (const med of medications) {
       const cleanGenericName = med.drugName
         .toLowerCase()
-        .replace(
-          /\b(succinate|maleate|fumarate|hcl|hydrochloride|sodium|potassium|tabs|caps|drops|2%)\b/gi,
-          '',
-        )
+        .replace(/\b(succinate|maleate|fumarate|hcl|hydrochloride|sodium|potassium|tabs|caps|drops|2%)\b/gi, '')
         .trim();
 
       const lookupUrl = `https://rxnav.nlm.nih.gov/REST/rxcui.json?name=${encodeURIComponent(cleanGenericName)}&srchType=1`;
@@ -268,17 +266,14 @@ async function checkForDrugInteractions(
           }
         }
       } else {
-        // NIH returned a non-OK HTTP status — mark as uncertain
         console.error('NIH interaction endpoint returned non-OK status:', interactionResponse.status);
         nihError = true;
       }
     } else if (nihDrugIds.length < 2 && medications.length >= 2) {
-      // We had meds but couldn't resolve ≥2 RxNorm IDs — NIH lookup failed
       console.warn('NIH RxNorm ID resolution returned fewer than 2 IDs for the given medications.');
       nihError = true;
     }
   } catch (error) {
-    // Network failure, timeout, or parse error — mark as uncertain
     console.error('NIH network pass failed:', error);
     nihError = true;
   }
@@ -300,6 +295,7 @@ export async function POST(request: NextRequest) {
 
     const extractionResult = await extractMedicationsFromImage(base64Image);
     const { interactions, nihError } = await checkForDrugInteractions(extractionResult.medications);
+    const lifestyleWarnings = await getLifestyleWarnings(extractionResult.medications);
 
     // Persist scan to the database
     await prisma.prescriptionScan.create({
@@ -319,9 +315,9 @@ export async function POST(request: NextRequest) {
         recordDate: extractionResult.recordDate,
         medications: extractionResult.medications,
         interactions,
-        nihError,   // ← KEY FIX: frontend uses this to show advisory instead of false "all clear"
-        source:
-          'Groq Llama-4 Scout Vision (AI Extraction) + US Federal NIH RxNav Active Matrix',
+        nihError,
+        lifestyleWarnings,
+        source: 'Groq Llama-4 Scout Vision (AI Extraction) + US Federal NIH RxNav Active Matrix',
         scannedAt: new Date().toISOString(),
       },
       { status: 200 },
@@ -337,5 +333,58 @@ export async function POST(request: NextRequest) {
       },
       { status: 500 },
     );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// LIFESTYLE & FOOD‑DRUG WARNING RESOLVER
+// ─────────────────────────────────────────────────────────────
+/**
+ * Analyzes a list of medications and returns lifestyle/food–drug warnings.
+ * The Groq LLM is instructed to output a JSON object:
+ *   { "warnings": ["...", "..."] }
+ */
+async function getLifestyleWarnings(medications: Medication[]): Promise<string[]> {
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) return [];
+
+  const drugList = medications.map(m => m.drugName).join(', ');
+
+  const prompt = `
+You are a clinical nutrition and lifestyle advisor.
+Given the following medications: ${drugList}
+Identify any high‑risk lifestyle, food, or drink interactions that patients should avoid. Include common issues such as:
+- Alcohol interactions (e.g., beta‑blockers, antihistamines, CNS depressants)
+- Grapefruit or citrus juice interactions (e.g., certain statins, calcium channel blockers)
+- High‑sodium foods (e.g., for medications that raise blood pressure or cause fluid retention)
+- Tyramine‑rich foods (e.g., MAO inhibitors)
+- Caffeine or stimulant considerations
+Provide concise, actionable advice for each warning.
+Return ONLY a JSON object with a single field "warnings" that is an array of short strings. No markdown, no extra text.
+`;
+
+  try {
+    const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'meta-llama/llama-4-scout-17b-16e-instruct',
+        temperature: 0.2,
+        response_format: { type: 'json_object' },
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+
+    if (!response.ok) return [];
+    const data = await response.json();
+    const content = data?.choices?.[0]?.message?.content;
+    const parsed = JSON.parse(content ?? '{}');
+    if (Array.isArray(parsed.warnings)) return parsed.warnings;
+    return [];
+  } catch {
+    return [];
   }
 }

@@ -101,12 +101,14 @@ function exportPDF(item: {
   scannedAt: string;
   medications: Medication[];
   interactions: Interaction[];
+  lifestyleWarnings?: string[];
 }) {
   const doc = new jsPDF({ unit: "pt", format: "a4" });
   const pageWidth = doc.internal.pageSize.getWidth();
   const margin = 40;
   let y = margin;
 
+  // Header block with slate-colored accent
   doc.setFillColor(30, 41, 59);
   doc.rect(0, 0, pageWidth, 60, "F");
   doc.setTextColor(255, 255, 255);
@@ -115,6 +117,7 @@ function exportPDF(item: {
   doc.text("RxScan AI — Clinical Safety Summary", pageWidth / 2, 36, { align: "center" });
   y = 80;
 
+  // Metadata section
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(12);
   doc.setFont(undefined as any, "normal");
@@ -125,6 +128,7 @@ function exportPDF(item: {
   ].forEach(line => { doc.text(line, margin, y); y += 16; });
   y += 8;
 
+  // Medications list
   if (item.medications.length) {
     doc.setFontSize(14); doc.setFont(undefined as any, "bold");
     doc.text("Medications:", margin, y); y += 20;
@@ -136,6 +140,7 @@ function exportPDF(item: {
     y += 8;
   }
 
+  // Interaction warnings
   if (item.interactions.length) {
     item.interactions.forEach(int => {
       doc.setFillColor(254, 243, 199);
@@ -154,6 +159,20 @@ function exportPDF(item: {
     doc.text("No drug-to-drug interactions detected.", margin, y); y += 38;
   }
 
+  // Lifestyle & Dietary Advice section
+  if (item.lifestyleWarnings && item.lifestyleWarnings.length) {
+    item.lifestyleWarnings.forEach((advice, idx) => {
+      doc.setFillColor(220, 235, 255); 
+      doc.rect(margin - 5, y - 12, pageWidth - margin * 2 + 10, 40, "F");
+      doc.setFontSize(12); doc.setFont(undefined as any, "bold");
+      doc.setTextColor(0, 0, 0);
+      doc.text(`Advice ${idx + 1}:`, margin, y);
+      doc.setFont(undefined as any, "normal");
+      doc.text(advice, margin, y + 14, { maxWidth: pageWidth - margin * 2 });
+      y += 48;
+    });
+  }
+
   const footerY = doc.internal.pageSize.getHeight() - 80;
   doc.setFontSize(10); doc.setTextColor(80, 80, 80);
   ["* This report is for informational purposes only.", "* Consult a qualified healthcare professional before changing medications."]
@@ -163,7 +182,6 @@ function exportPDF(item: {
     .replace(/\s+/g, "_").replace(/[^a-zA-Z0-9._]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
   doc.save(`RxScan_Safety_Summary_${safeName}.pdf`);
 }
-
 // ═════════════════════════════════════════════════════════════════════════════
 // COMPONENT
 // ═════════════════════════════════════════════════════════════════════════════
@@ -173,6 +191,7 @@ export default function PrescriptionScanner() {
   // ── Scanner state (scoped strictly to Scanner view) ──────────────────────
   const [meds,               setMeds]               = useState<Medication[]>([]);
   const [interactions,       setInteractions]       = useState<Interaction[]>([]);
+  const [lifestyleWarnings, setLifestyleWarnings] = useState<string[]>([]);
   const [interactionChecked, setInteractionChecked] = useState(false);
   const [nihFailed,          setNihFailed]          = useState(false);
   const [dataSource,         setDataSource]         = useState("");
@@ -272,6 +291,8 @@ export default function PrescriptionScanner() {
 
       setMeds(normalizedMeds);
       setInteractions(normalizedInteractions);
+          const fetchedLifestyle = (data.lifestyleWarnings ?? []) as string[];
+          setLifestyleWarnings(fetchedLifestyle);
       setInteractionChecked(true);
       setNihFailed(
         normalizedMeds.length >= 2 &&
@@ -695,9 +716,39 @@ export default function PrescriptionScanner() {
 
                 {/* Export button */}
                 <div style={{ margin:"20px 0", textAlign:"center" }}>
-                  <button className="upload-btn" onClick={() => exportPDF({ patientName, prescriptionDate, scannedAt: new Date().toISOString(), medications: meds, interactions })}>
+                  <button className="upload-btn" onClick={() => exportPDF({ patientName, prescriptionDate, scannedAt: new Date().toISOString(), medications: meds, interactions, lifestyleWarnings })}>
                     Export Clinical Safety Summary PDF
                   </button>
+                </div>
+
+                {/* Lifestyle & Dietary Shield panel */}
+                <div className="panel">
+                  <div className="panel-header">
+                    <div className="panel-title-group">
+                      <div className="panel-icon pi-amber">
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                          <path d="M7 1.5L12.5 12H1.5L7 1.5Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+                        </svg>
+                      </div>
+                      <span className="panel-title">Lifestyle &amp; Dietary Shield</span>
+                    </div>
+                    {lifestyleWarnings.length > 0 && (
+                      <span className="panel-count">{lifestyleWarnings.length} advice</span>
+                    )}
+                  </div>
+                  {lifestyleWarnings.length === 0 ? (
+                    <div className="safe-state">
+                      <div className="safe-title">No specific dietary restrictions</div>
+                    </div>
+                  ) : (
+                    <div className="warn-list">
+                      {lifestyleWarnings.map((msg, i) => (
+                        <div key={i} className="warn-card caution" style={{ animationDelay: `${i * 65}ms` }}>
+                          <p className="warn-text">{msg}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Schedule panel */}
