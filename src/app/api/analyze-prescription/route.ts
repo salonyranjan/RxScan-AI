@@ -1,17 +1,11 @@
-//
 /**
  * ============================================================
  * PRESCRIPTION SCANNER API — route.ts
  * ============================================================
  * Fixes in this revision:
- *  1. Returns `nihError: true` when the NIH pass fails, so the
- *     frontend can distinguish "no interactions found" from
- *     "NIH was unreachable — safety unknown".
- *  2. Returns proper 200 with nihError flag instead of silently
- *     swallowing the failure, which previously caused a false
- *     "all clear" message in the UI.
- *  3. Drug name normalisation in the NIH loop is more robust.
- *  4. Exported POST handler returns nihError in the JSON body.
+ * 1. Fixed return signature types to eliminate compilation errors.
+ * 2. Captures and maps Prisma transaction rows down to payload keys.
+ * 3. Sanitizes incoming drug strings to prevent malformed string parameters.
  * ============================================================
  */
 
@@ -176,20 +170,16 @@ async function simplifyWarningForPatient(
 
 // ─────────────────────────────────────────────────────────────
 // STEP 3 — INTERACTION TRAVERSAL WITH OVERRIDE SHIELD
-// Returns { interactions, nihError }
-// nihError=true means the NIH API was unreachable/failed —
-// the frontend MUST NOT show "all clear" when nihError is true.
 // ─────────────────────────────────────────────────────────────
 async function checkForDrugInteractions(
   medications: Medication[],
-): Promise<{ interactions: DrugInteraction[]; nihError: boolean }> {
-  if (medications.length < 2) return { interactions: [], nihError: false };
+): Promise<{ GoldInteractions: DrugInteraction[]; nihError: boolean }> {
+  if (medications.length < 2) return { GoldInteractions: [], nihError: false };
 
   const warnings: DrugInteraction[] = [];
   const capturedPairs = new Set<string>();
   let nihError = false;
 
-  // PATH A: Run local clinical override interceptor first
   const currentMedNames = medications.map(m => m.drugName.toLowerCase().trim());
 
   for (const rule of CLINICAL_OVERRIDE_RULES) {
@@ -207,15 +197,17 @@ async function checkForDrugInteractions(
     }
   }
 
-  // PATH B: NIH RxNav API
   try {
     const nihDrugIds: string[] = [];
 
     for (const med of medications) {
       const cleanGenericName = med.drugName
         .toLowerCase()
-        .replace(/\b(succinate|maleate|fumarate|hcl|hydrochloride|sodium|potassium|tabs|caps|drops|2%)\b/gi, '')
+        .replace(/[\d%]/g, '') 
+        .replace(/\b(succinate|maleate|fumarate|hcl|hydrochloride|sodium|potassium|tabs|caps|drops|drop|mg|ml)\b/gi, '')
         .trim();
+
+      if (!cleanGenericName) continue;
 
       const lookupUrl = `https://rxnav.nlm.nih.gov/REST/rxcui.json?name=${encodeURIComponent(cleanGenericName)}&srchType=1`;
       const lookupResponse = await fetch(lookupUrl, { signal: AbortSignal.timeout(8000) });
@@ -224,6 +216,9 @@ async function checkForDrugInteractions(
         const lookupData = await lookupResponse.json();
         const nihId = lookupData?.idGroup?.rxnormId?.[0];
         if (nihId && !nihDrugIds.includes(nihId)) nihDrugIds.push(nihId);
+      } else {
+        console.warn(`NIH identifier lookup returned code: ${lookupResponse.status} for drug query: ${cleanGenericName}`);
+        nihError = true;
       }
     }
 
@@ -238,14 +233,8 @@ async function checkForDrugInteractions(
         for (const group of typeGroups) {
           for (const type of group.fullInteractionType || []) {
             for (const pair of type.interactionPair || []) {
-              const drugA =
-                pair.interactionConcept?.[0]?.minConcept?.name ??
-                type.minConcept?.[0]?.name ??
-                'Unknown Drug';
-              const drugB =
-                pair.interactionConcept?.[1]?.minConcept?.name ??
-                type.minConcept?.[1]?.name ??
-                'Unknown Drug';
+              const drugA = pair.interactionConcept?.[0]?.minConcept?.name ?? type.minConcept?.[0]?.name ?? 'Unknown Drug';
+              const drugB = pair.interactionConcept?.[1]?.minConcept?.name ?? type.minConcept?.[1]?.name ?? 'Unknown Drug';
 
               const pairKey = [drugA.toLowerCase(), drugB.toLowerCase()].sort().join('-');
               if (capturedPairs.has(pairKey)) continue;
@@ -253,14 +242,9 @@ async function checkForDrugInteractions(
 
               const nihSeverity = pair.severity ?? '';
               const nihDescription = pair.description ?? 'Potential drug interaction detected.';
-              const severity: 'critical' | 'caution' =
-                nihSeverity.toLowerCase() === 'high' ? 'critical' : 'caution';
+              const severity: 'critical' | 'caution' = nihSeverity.toLowerCase() === 'high' ? 'critical' : 'caution';
 
-              const plainEnglishWarning = await simplifyWarningForPatient(
-                drugA,
-                drugB,
-                nihDescription,
-              );
+              const plainEnglishWarning = await simplifyWarningForPatient(drugA, drugB, nihDescription);
               warnings.push({ drugA, drugB, severity, plainEnglishWarning });
             }
           }
@@ -278,7 +262,7 @@ async function checkForDrugInteractions(
     nihError = true;
   }
 
-  return { interactions: warnings, nihError };
+  return { GoldInteractions: warnings, nihError };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -294,27 +278,28 @@ export async function POST(request: NextRequest) {
     }
 
     const extractionResult = await extractMedicationsFromImage(base64Image);
-    const { interactions, nihError } = await checkForDrugInteractions(extractionResult.medications);
+    const { GoldInteractions, nihError } = await checkForDrugInteractions(extractionResult.medications);
     const lifestyleWarnings = await getLifestyleWarnings(extractionResult.medications);
 
-    // Persist scan to the database
-    await prisma.prescriptionScan.create({
+    // Save and capture generated relational key metrics
+    const savedRecord = await prisma.prescriptionScan.create({
       data: {
         patientName: extractionResult.patientName,
         recordDate: extractionResult.recordDate,
         source: 'Groq Llama-4 Scout Vision (AI Extraction) + US Federal NIH RxNav Active Matrix',
         medications: extractionResult.medications as any,
-        drugInteractions: interactions as any,
+        drugInteractions: GoldInteractions as any,
         scannedAt: new Date(),
       },
     });
 
     return NextResponse.json(
       {
+        id: savedRecord.id,
         patientName: extractionResult.patientName,
         recordDate: extractionResult.recordDate,
         medications: extractionResult.medications,
-        interactions,
+        interactions: GoldInteractions,
         nihError,
         lifestyleWarnings,
         source: 'Groq Llama-4 Scout Vision (AI Extraction) + US Federal NIH RxNav Active Matrix',
@@ -323,6 +308,7 @@ export async function POST(request: NextRequest) {
       { status: 200 },
     );
   } catch (err: any) {
+    console.error("Critical breakdown inside scanner pipeline loop:", err);
     const isNotPrescription = err.message === 'NOT_A_PRESCRIPTION';
     return NextResponse.json(
       {
@@ -339,11 +325,6 @@ export async function POST(request: NextRequest) {
 // ─────────────────────────────────────────────────────────────
 // LIFESTYLE & FOOD‑DRUG WARNING RESOLVER
 // ─────────────────────────────────────────────────────────────
-/**
- * Analyzes a list of medications and returns lifestyle/food–drug warnings.
- * The Groq LLM is instructed to output a JSON object:
- *   { "warnings": ["...", "..."] }
- */
 async function getLifestyleWarnings(medications: Medication[]): Promise<string[]> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) return [];

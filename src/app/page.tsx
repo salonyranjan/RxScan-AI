@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { jsPDF } from "jspdf";
+import VitalsDashboard from "@/components/VitalsDashboard";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -26,6 +27,7 @@ interface ScanResult {
   medications?: Medication[];
   interactions?: Interaction[];
   drugInteractions?: Interaction[];
+  lifestyleWarnings?: string[];
 }
 
 type ActiveMenu = "Scanner" | "History" | "Database";
@@ -108,7 +110,6 @@ function exportPDF(item: {
   const margin = 40;
   let y = margin;
 
-  // Header block with slate-colored accent
   doc.setFillColor(30, 41, 59);
   doc.rect(0, 0, pageWidth, 60, "F");
   doc.setTextColor(255, 255, 255);
@@ -117,7 +118,6 @@ function exportPDF(item: {
   doc.text("RxScan AI — Clinical Safety Summary", pageWidth / 2, 36, { align: "center" });
   y = 80;
 
-  // Metadata section
   doc.setTextColor(0, 0, 0);
   doc.setFontSize(12);
   doc.setFont(undefined as any, "normal");
@@ -128,7 +128,6 @@ function exportPDF(item: {
   ].forEach(line => { doc.text(line, margin, y); y += 16; });
   y += 8;
 
-  // Medications list
   if (item.medications.length) {
     doc.setFontSize(14); doc.setFont(undefined as any, "bold");
     doc.text("Medications:", margin, y); y += 20;
@@ -140,7 +139,6 @@ function exportPDF(item: {
     y += 8;
   }
 
-  // Interaction warnings
   if (item.interactions.length) {
     item.interactions.forEach(int => {
       doc.setFillColor(254, 243, 199);
@@ -159,10 +157,9 @@ function exportPDF(item: {
     doc.text("No drug-to-drug interactions detected.", margin, y); y += 38;
   }
 
-  // Lifestyle & Dietary Advice section
   if (item.lifestyleWarnings && item.lifestyleWarnings.length) {
     item.lifestyleWarnings.forEach((advice, idx) => {
-      doc.setFillColor(220, 235, 255); 
+      doc.setFillColor(220, 235, 255);
       doc.rect(margin - 5, y - 12, pageWidth - margin * 2 + 10, 40, "F");
       doc.setFontSize(12); doc.setFont(undefined as any, "bold");
       doc.setTextColor(0, 0, 0);
@@ -182,21 +179,18 @@ function exportPDF(item: {
     .replace(/\s+/g, "_").replace(/[^a-zA-Z0-9._]/g, "_").replace(/_+/g, "_").replace(/^_|_$/g, "");
   doc.save(`RxScan_Safety_Summary_${safeName}.pdf`);
 }
-// ═════════════════════════════════════════════════════════════════════════════
-// COMPONENT
-// ═════════════════════════════════════════════════════════════════════════════
 
 export default function PrescriptionScanner() {
-
-  // ── Scanner state (scoped strictly to Scanner view) ──────────────────────
+  // ── Scanner state ─────────────────────────────────────────────────────────
   const [meds,               setMeds]               = useState<Medication[]>([]);
   const [interactions,       setInteractions]       = useState<Interaction[]>([]);
-  const [lifestyleWarnings, setLifestyleWarnings] = useState<string[]>([]);
+  const [lifestyleWarnings,  setLifestyleWarnings]  = useState<string[]>([]);
   const [interactionChecked, setInteractionChecked] = useState(false);
   const [nihFailed,          setNihFailed]          = useState(false);
   const [dataSource,         setDataSource]         = useState("");
   const [patientName,        setPatientName]        = useState("");
   const [prescriptionDate,   setPrescriptionDate]   = useState("");
+  const [scanId,             setScanId]             = useState<string | null>(null);
   const [scanning,           setScanning]           = useState(false);
   const [scanError,          setScanError]          = useState("");
   const [previewUrl,         setPreviewUrl]         = useState<string | null>(null);
@@ -204,25 +198,24 @@ export default function PrescriptionScanner() {
   const [hoveredMed,         setHoveredMed]         = useState<number | null>(null);
   const [activeTab,          setActiveTab]          = useState<ScheduleTab>("Morning");
 
-  // ── Global nav ───────────────────────────────────────────────────────────
+  // ── Global nav ────────────────────────────────────────────────────────────
   const [activeMenu, setActiveMenu] = useState<ActiveMenu>("Scanner");
 
-  // ── History state (scoped strictly to History view) ──────────────────────
+  // ── History state ─────────────────────────────────────────────────────────
   const [history,        setHistory]        = useState<ScanResult[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [historyError,   setHistoryError]   = useState("");
 
-  // ── Misc ─────────────────────────────────────────────────────────────────
+  // ── Misc ──────────────────────────────────────────────────────────────────
   const [isMounted, setIsMounted] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const { stepIdx, progress } = useScanSteps(scanning);
 
   useEffect(() => { setIsMounted(true); }, []);
 
-  // ── Menu switch: clear stale cross-view state ─────────────────────────────
+  // ── Menu switch ───────────────────────────────────────────────────────────
   const switchMenu = useCallback((menu: ActiveMenu) => {
     setActiveMenu(menu);
-    // Reset hover/tab UI that should not persist across view switches
     setHoveredMed(null);
     if (menu === "Scanner") setActiveTab("Morning");
     if (menu === "History") fetchHistory();
@@ -254,6 +247,7 @@ export default function PrescriptionScanner() {
     setPatientName("");
     setPrescriptionDate("");
     setDataSource("");
+    setScanId(null); // 🚀 Clear old tracking vectors instantly when a new image runs
 
     try {
       const res  = await fetch("/api/analyze-prescription", {
@@ -291,8 +285,8 @@ export default function PrescriptionScanner() {
 
       setMeds(normalizedMeds);
       setInteractions(normalizedInteractions);
-          const fetchedLifestyle = (data.lifestyleWarnings ?? []) as string[];
-          setLifestyleWarnings(fetchedLifestyle);
+      const fetchedLifestyle = (data.lifestyleWarnings ?? []) as string[];
+      setLifestyleWarnings(fetchedLifestyle);
       setInteractionChecked(true);
       setNihFailed(
         normalizedMeds.length >= 2 &&
@@ -303,7 +297,21 @@ export default function PrescriptionScanner() {
       setDataSource(data.source ?? "");
       setPatientName(data.patientName ?? "");
       setPrescriptionDate(data.prescriptionDate ?? "");
-    } catch {
+      
+      // 🚀 FIXED CASCADING MATRIX: Resolves keys across deep model objects natively
+      const extractedId = 
+        data.id || 
+        data.scanId || 
+        data.vitalsId ||
+        (data.prescription && data.prescription.id) || 
+        (data.log && data.log.id) || 
+        (data.scan && data.scan.id) ||
+        (data.data && data.data.id);
+
+      console.log("🎯 Biometric Tracking Engine Token Sync Success:", extractedId);
+      setScanId(extractedId ?? null);
+    } catch (e: any) {
+      console.error("Analysis route crash logs:", e);
       setScanError("Could not reach the clinical analysis engine. Please check your connection and try again.");
     } finally {
       setScanning(false);
@@ -332,17 +340,16 @@ export default function PrescriptionScanner() {
     const f = e.dataTransfer.files?.[0];
     if (f) handleFile(f);
   };
-  const onDragOver  = (e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); setDragOver(true); };
+  const onDragOver = (e: React.DragEvent<HTMLDivElement>) => { e.preventDefault(); setDragOver(true); };
 
   // ── Derived scanner state ─────────────────────────────────────────────────
   const totalMeds     = meds.length;
   const criticalCount = interactions.filter(i => i.severity === "critical").length;
   const cautionCount  = interactions.filter(i => i.severity === "caution").length;
   const warnCount     = interactions.length;
-  const hasResults    = totalMeds > 0;                                   // scanner-only flag
+  const hasResults    = totalMeds > 0;
   const tabMeds       = getMedsForTab(meds, activeTab);
 
-  // Interaction panel FSM — 4 mutually-exclusive states
   type IPState = "idle" | "warnings" | "allclear" | "advisory";
   const ipState: IPState =
     !interactionChecked   ? "idle"
@@ -352,9 +359,6 @@ export default function PrescriptionScanner() {
 
   if (!isMounted) return <div className="root" />;
 
-  // ═══════════════════════════════════════════════════════════════════════════
-  // RENDER
-  // ═══════════════════════════════════════════════════════════════════════════
   return (
     <div className="root">
       <style>{CSS}</style>
@@ -420,7 +424,7 @@ export default function PrescriptionScanner() {
           </p>
         </section>
 
-        {/* ── STAT CARDS (always visible, context-aware) ───────────────────── */}
+        {/* ── STAT CARDS ───────────────────────────────────────────────────── */}
         <div className="stats-row">
           <div className="stat-card blue">
             <div className="stat-num">{activeMenu === "Scanner" ? totalMeds : "—"}</div>
@@ -455,10 +459,6 @@ export default function PrescriptionScanner() {
             <div className="stat-sub">RxNav · RxNorm</div>
           </div>
         </div>
-
-        {/* ════════════════════════════════════════════════════════════════════
-            VIEW MATRIX — exactly one branch renders at all times
-        ════════════════════════════════════════════════════════════════════ */}
 
         {/* ── VIEW: SCANNER ────────────────────────────────────────────────── */}
         {activeMenu === "Scanner" && (
@@ -562,7 +562,7 @@ export default function PrescriptionScanner() {
               )}
             </div>
 
-            {/* Results — only when hasResults AND we are on the Scanner tab */}
+            {/* ── RESULTS BLOCK (guarded by hasResults) ───────────────────── */}
             {hasResults && (
               <div className="results">
                 <div className="section-label">
@@ -654,7 +654,6 @@ export default function PrescriptionScanner() {
                       )}
                     </div>
 
-                    {/* FSM branch: warnings */}
                     {ipState === "warnings" && (
                       <div className="warn-list">
                         <div className="warn-disclaimer">⚕ Always consult your pharmacist before changing medications.</div>
@@ -674,7 +673,6 @@ export default function PrescriptionScanner() {
                       </div>
                     )}
 
-                    {/* FSM branch: allclear */}
                     {ipState === "allclear" && (
                       <div className="safe-state">
                         <div className="safe-icon-wrap">
@@ -692,7 +690,6 @@ export default function PrescriptionScanner() {
                       </div>
                     )}
 
-                    {/* FSM branch: advisory */}
                     {ipState === "advisory" && (
                       <div className="advisory-state">
                         <div className="advisory-icon-wrap">
@@ -708,9 +705,6 @@ export default function PrescriptionScanner() {
                         </div>
                       </div>
                     )}
-
-                    {/* FSM branch: idle (no scan yet — should never show inside hasResults block) */}
-                    {ipState === "idle" && null}
                   </div>
                 </div>
 
@@ -751,50 +745,62 @@ export default function PrescriptionScanner() {
                   )}
                 </div>
 
-                {/* Schedule panel */}
-                <div className="schedule-panel">
-                  <div className="section-label" style={{ marginBottom:"20px" }}>
-                    <span className="section-num">03</span>
-                    Daily Medication Schedule
-                  </div>
+              </div>
+            )}
 
-                  <div className="tab-bar">
-                    {(["Morning","Afternoon","Evening"] as ScheduleTab[]).map(tab => (
-                      <button key={tab} className={`tab-btn${activeTab === tab ? " tab-active" : ""}`} onClick={() => setActiveTab(tab)}>
-                        <span className="tab-emoji">{tab === "Morning" ? "🌅" : tab === "Afternoon" ? "☀️" : "🌙"}</span>
-                        <span>{tab}</span>
-                      </button>
-                    ))}
-                  </div>
+            {/* ==================== VITALS DASHBOARD (INDEPENDENT LAYER) ==================== */}
+            {/* Deliberately outside the hasResults gate so the component mounts immediately   */}
+            {/* on page load and can display its "Awaiting scan ID token…" fallback state.     */}
+            {/* Once a scan completes, scanId becomes a real UUID and the dashboard hydrates. */}
+            <div style={{ marginBottom: "24px" }}>
+              <VitalsDashboard scanId={scanId} />
+            </div>
 
-                  <div className="timeline">
-                    {tabMeds.length === 0 ? (
-                      <div className="tl-empty">
-                        <svg width="32" height="32" viewBox="0 0 32 32" fill="none" style={{ opacity:0.25 }}>
-                          <circle cx="16" cy="16" r="12" stroke="currentColor" strokeWidth="1.5"/>
-                          <path d="M16 10V16L20 20" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-                        </svg>
-                        <p>No medications scheduled for {activeTab.toLowerCase()}.</p>
-                      </div>
-                    ) : tabMeds.map((med, i) => (
-                      <div key={i} className="tl-item" style={{ animationDelay:`${i*60}ms` }}>
-                        <div className="tl-time-col">
-                          <div className="tl-time">
-                            {activeTab === "Morning" ? "08:00" : activeTab === "Afternoon" ? "13:00" : "20:00"}
-                          </div>
-                          {i < tabMeds.length - 1 && <div className="tl-bar" />}
+            {/* ── SCHEDULE PANEL (guarded — only relevant once meds are known) ── */}
+            {hasResults && (
+              <div className="schedule-panel">
+                <div className="section-label" style={{ marginBottom:"20px" }}>
+                  <span className="section-num">03</span>
+                  Daily Medication Schedule
+                </div>
+
+                <div className="tab-bar">
+                  {(["Morning","Afternoon","Evening"] as ScheduleTab[]).map(tab => (
+                    <button key={tab} className={`tab-btn${activeTab === tab ? " tab-active" : ""}`} onClick={() => setActiveTab(tab)}>
+                      <span className="tab-emoji">{tab === "Morning" ? "🌅" : tab === "Afternoon" ? "☀️" : "🌙"}</span>
+                      <span>{tab}</span>
+                    </button>
+                  ))}
+                </div>
+
+                <div className="timeline">
+                  {tabMeds.length === 0 ? (
+                    <div className="tl-empty">
+                      <svg width="32" height="32" viewBox="0 0 32 32" fill="none" style={{ opacity:0.25 }}>
+                        <circle cx="16" cy="16" r="12" stroke="currentColor" strokeWidth="1.5"/>
+                        <path d="M16 10V16L20 20" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                      </svg>
+                      <p>No medications scheduled for {activeTab.toLowerCase()}.</p>
+                    </div>
+                  ) : tabMeds.map((med, i) => (
+                    <div key={i} className="tl-item" style={{ animationDelay:`${i*60}ms` }}>
+                      <div className="tl-time-col">
+                        <div className="tl-time">
+                          {activeTab === "Morning" ? "08:00" : activeTab === "Afternoon" ? "13:00" : "20:00"}
                         </div>
-                        <div className="tl-card">
-                          <div className="tl-dot" />
-                          <div className="tl-med-name">{med.drugName}</div>
-                          <div className="tl-med-dose">{med.dosage || "—"}</div>
-                        </div>
+                        {i < tabMeds.length - 1 && <div className="tl-bar" />}
                       </div>
-                    ))}
-                  </div>
+                      <div className="tl-card">
+                        <div className="tl-dot" />
+                        <div className="tl-med-name">{med.drugName}</div>
+                        <div className="tl-med-dose">{med.dosage || "—"}</div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}
+
           </div>
         )}
 
@@ -1130,7 +1136,7 @@ const CSS = `
   .severity-pill.critical { background:var(--red-dim);   color:var(--red);   border:1px solid rgba(239,68,68,0.25); }
   .severity-pill.caution  { background:var(--amber-dim); color:var(--amber); border:1px solid rgba(245,158,11,0.2); }
   .warn-drugs { display:flex; align-items:center; gap:8px; margin-bottom:8px; flex-wrap:wrap; }
-  .drug-tag   { font-family:var(--font); font-size:13px; font-weight:500; color:var(--text-1); background:var(--bg-hover); border:1px solid var(--border-md); padding:3px 10px; border-radius:var(--radius-sm); }
+  .drug-tag    { font-family:var(--font); font-size:13px; font-weight:500; color:var(--text-1); background:var(--bg-hover); border:1px solid var(--border-md); padding:3px 10px; border-radius:var(--radius-sm); }
   .plus-icon  { color:var(--text-3); font-size:14px; }
   .warn-text  { font-size:13px; color:var(--text-2); line-height:1.5; }
   .safe-state { padding:40px 24px; text-align:center; }
@@ -1175,8 +1181,8 @@ const CSS = `
   @media(max-width:580px){ .history-card-body{ grid-template-columns:1fr; } }
   .history-col       { display:flex; flex-direction:column; gap:6px; }
   .history-col-title { font-size:13px; font-weight:500; color:var(--text-1); margin-bottom:4px; }
-  .history-med-row   { font-size:13px; color:var(--text-2); }
-  .history-int-row   { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--text-2); }
+  .history-med-row    { font-size:13px; color:var(--text-2); }
+  .history-int-row    { display:flex; align-items:center; gap:6px; font-size:13px; color:var(--text-2); }
   .history-sev.critical { color:var(--red); }
   .history-sev.caution  { color:var(--amber); }
   .history-safe { font-size:13px; color:var(--emerald); }

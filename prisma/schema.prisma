@@ -8,24 +8,24 @@ generator client {
 }
 
 model Medication {
-  id        String   @id @default(cuid())
-  name      String
-  dosage    String?
-  frequency String?
+  id           String   @id @default(cuid())
+  name         String
+  dosage       String?
+  frequency    String?
   instructions String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  schedules Schedule[]
+  schedules    Schedule[]
   interactions InteractingDrug[]
 }
 
 model Schedule {
-  id          String   @id @default(cuid())
+  id           String   @id @default(cuid())
   medicationId String
-  time        DateTime
-  taken       Boolean  @default(false)
-  notes       String?
+  time         DateTime
+  taken        Boolean  @default(false)
+  notes        String?
 
   medication Medication @relation(fields: [medicationId], references: [id])
 
@@ -33,23 +33,39 @@ model Schedule {
 }
 
 model InteractingDrug {
-  id        String   @id @default(cuid())
-  medicationId String
+  id                  String  @id @default(cuid())
+  medicationId        String
   interactingDrugName String
-  severity  String
-  description String?
+  severity            String
+  description         String?
 
   medication Medication @relation(fields: [medicationId], references: [id])
 }
 
 model PrescriptionScan {
-  id               String   @id @default(cuid())
-  patientName      String   @default("Unknown Patient")
+  id               String      @id @default(cuid()) // Matches the cuid() strategy of your other models
+  patientName      String      @default("Unknown Patient")
   recordDate       String
   source           String
-  scannedAt        DateTime @default(now())
+  scannedAt        DateTime    @default(now())
   medications      Json
   drugInteractions Json
+  
+  // 🚀 RELATION: Links this scan to its collection of daily logged biometrics
+  vitalsLogs       VitalsLog[]
 
   @@map("prescription_scans")
+}
+
+// 🚀 NEW MODEL: Added back into the schema matrix securely
+model VitalsLog {
+  id           String           @id @default(cuid())
+  scanId       String           // Properly typed as a String to match the parent id
+  recordedAt   DateTime         @default(now())
+  heartRate    Int              // Cardiovascular pulse (BPM)
+  systolicBP   Int              // Upper blood pressure metric (mmHg)
+  diastolicBP  Int              // Lower blood pressure metric (mmHg)
+  
+  // Relationship linking back to the prescription scan row with automatic cascade deletes
+  prescription PrescriptionScan @relation(fields: [scanId], references: [id], onDelete: Cascade)
 }
