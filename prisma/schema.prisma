@@ -41,3 +41,15 @@ model InteractingDrug {
 
   medication Medication @relation(fields: [medicationId], references: [id])
 }
+
+model PrescriptionScan {
+  id               String   @id @default(cuid())
+  patientName      String   @default("Unknown Patient")
+  recordDate       String
+  source           String
+  scannedAt        DateTime @default(now())
+  medications      Json
+  drugInteractions Json
+
+  @@map("prescription_scans")
+}

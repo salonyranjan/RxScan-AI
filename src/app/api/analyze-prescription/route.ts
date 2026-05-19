@@ -15,6 +15,13 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/db';
+
+interface ExtractionResult {
+  patientName: string;
+  recordDate: string;
+  medications: Medication[];
+}
 
 interface Medication {
   drugName: string;
@@ -42,7 +49,7 @@ const CLINICAL_OVERRIDE_RULES = [
 // ─────────────────────────────────────────────────────────────
 // STEP 1 — MULTIMODAL IMAGE EXTRACTION (GROQ SCOUT)
 // ─────────────────────────────────────────────────────────────
-async function extractMedicationsFromImage(base64Image: string): Promise<Medication[]> {
+async function extractMedicationsFromImage(base64Image: string): Promise<ExtractionResult> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error('Server configuration error: GROQ_API_KEY environment variable is missing.');
 
@@ -114,9 +121,9 @@ async function extractMedicationsFromImage(base64Image: string): Promise<Medicat
 
   if (parsed.error === 'NOT_A_PRESCRIPTION') throw new Error('NOT_A_PRESCRIPTION');
 
-  if (Array.isArray(parsed)) return parsed as Medication[];
-  if (Array.isArray(parsed.medications)) return parsed.medications as Medication[];
-  return [];
+  if (Array.isArray(parsed)) return { patientName: "Unknown Patient", recordDate: new Date().toISOString(), medications: parsed as Medication[] };
+  if (Array.isArray(parsed.medications)) return { patientName: "Unknown Patient", recordDate: new Date().toISOString(), medications: parsed.medications as Medication[] };
+  return { patientName: "Unknown Patient", recordDate: new Date().toISOString(), medications: [] };
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -291,12 +298,26 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Missing image stream payload.' }, { status: 400 });
     }
 
-    const medications = await extractMedicationsFromImage(base64Image);
-    const { interactions, nihError } = await checkForDrugInteractions(medications);
+    const extractionResult = await extractMedicationsFromImage(base64Image);
+    const { interactions, nihError } = await checkForDrugInteractions(extractionResult.medications);
+
+    // Persist scan to the database
+    await prisma.prescriptionScan.create({
+      data: {
+        patientName: extractionResult.patientName,
+        recordDate: extractionResult.recordDate,
+        source: 'Groq Llama-4 Scout Vision (AI Extraction) + US Federal NIH RxNav Active Matrix',
+        medications: extractionResult.medications as any,
+        drugInteractions: interactions as any,
+        scannedAt: new Date(),
+      },
+    });
 
     return NextResponse.json(
       {
-        medications,
+        patientName: extractionResult.patientName,
+        recordDate: extractionResult.recordDate,
+        medications: extractionResult.medications,
         interactions,
         nihError,   // ← KEY FIX: frontend uses this to show advisory instead of false "all clear"
         source:
