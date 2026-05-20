@@ -1,6 +1,6 @@
 datasource db {
-provider = "postgresql"
-  url = env("DATABASE_URL")
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 generator client {
@@ -43,24 +43,26 @@ model InteractingDrug {
 }
 
 model PrescriptionScan {
-  id               String      @id @default(cuid()) // Matches the cuid() strategy of your other models
-  patientName      String      @default("Unknown Patient")
-  recordDate       String
-  source           String
-  scannedAt        DateTime    @default(now())
-  medications      Json
-  drugInteractions Json
+  id                String      @id @default(cuid())
+  patientName       String      @default("Unknown Patient")
+  recordDate        String
+  source            String
+  scannedAt         DateTime    @default(now())
+  medications       Json
+  drugInteractions  Json
   
-  // 🚀 RELATION: Links this scan to its collection of daily logged biometrics
-  vitalsLogs       VitalsLog[]
+  // 🚀 NEW: Added to persist Groq's lifestyle and dietary advice
+  lifestyleWarnings Json?      
+  
+  // RELATION: Links this scan to its collection of daily logged biometrics
+  vitalsLogs        VitalsLog[]
 
   @@map("prescription_scans")
 }
 
-// 🚀 NEW MODEL: Added back into the schema matrix securely
 model VitalsLog {
   id           String           @id @default(cuid())
-  scanId       String           // Properly typed as a String to match the parent id
+  scanId       String           
   recordedAt   DateTime         @default(now())
   heartRate    Int              // Cardiovascular pulse (BPM)
   systolicBP   Int              // Upper blood pressure metric (mmHg)
