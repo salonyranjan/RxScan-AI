@@ -5,7 +5,9 @@
 <!-- ══════════════════════════════════════════════════════════════════ -->
 
 <img src="https://capsule-render.vercel.app/api?type=venom&color=0:000000,25:00f3ff,55:ff00ff,80:ffaa00,100:000000&height=260&section=header&text=💊%20RXSCAN%20AI&fontSize=86&fontColor=ffffff&fontAlignY=52&animation=fadeIn&stroke=00f3ff&strokeWidth=3&desc=Clinical%20Prescription%20Intelligence%20Terminal%20%7C%20Groq%20Vision%20%2B%20Next.js%2015%20%2B%20Prisma&descSize=19&descAlignY=74&descColor=00f3ff" />
-<img src="./public/images/hero.png" width="800" alt="RxScan AI "/>
+<img src="./public/images/1.png" width="1000" alt="RxScan AI "/>
+<img src="./public/images/2.png" width="1000" alt="RxScan AI "/>
+<img src="./public/images/3.png" width="1000" alt="RxScan AI "/>
 
 <br/>
 
@@ -136,8 +138,11 @@ RxScan AI operates in a **dark-mode-first synthwave paradigm** — electric cyan
 ### 2.2 🧬 FSM-Driven Interaction Check
 
 <div align="center">
-  <img src="./public/images/fsm-validation.png" width="400" alt="RxScan AI — FSM State Machine"/>
+  <img src="./public/images/fm1.png" width="700" alt="RxScan AI — FSM State Machine"/>
   <p><i>Finite state machine: IDLE → UPLOADING → PROCESSING → VALIDATING → COMPLETED.</i></p>
+   <img src="./public/images/fm2.png" width="700" alt="RxScan AI — FSM State Machine"/>
+    <p><i>Finite state machine: IDLE → UPLOADING → PROCESSING → VALIDATING → COMPLETED.</i></p>
+
 </div>
 
 > 🔄 Each FSM transition triggers contextual UI micro-interactions via `useReducer` middleware · State badge updates, progress arcs, and contextual error messages respond to every pipeline phase · No layout shifts during data hydration
@@ -147,12 +152,12 @@ RxScan AI operates in a **dark-mode-first synthwave paradigm** — electric cyan
 ### 2.3 📊 Glowing Recharts Vitals Monitor
 
 <div align="center">
-  <img src="./public/images/vitals-monitor.png" width="400" alt="RxScan AI — Vitals Dashboard"/>
+  <img src="./public/images/chart.png" width="700" alt="RxScan AI — Vitals Dashboard"/>
   <p><i>Real-time biometric visualization — blood pressure, heart rate, glucose — with custom gradient fills.</i></p>
 </div>
 
 <div align="center">
-  <img src="./public/images/vitals-detail.png" width="400" alt="RxScan AI — Vitals Detail"/>
+  <img src="./public/images/vitals-detail.png" width="700" alt="RxScan AI — Vitals Detail"/>
   <p><i>Animated threshold lines and glassmorphic panels respond to window resizing without frame drops.</i></p>
 </div>
 
@@ -163,8 +168,9 @@ RxScan AI operates in a **dark-mode-first synthwave paradigm** — electric cyan
 ### 2.4 💊 Drug Interaction Panel
 
 <div align="center">
-  <img src="./public/images/interactions.png" width="400" alt="RxScan AI — Drug Interactions"/>
+  <img src="./public/images/interaction.png" width="700" alt="RxScan AI — Drug Interactions"/>
   <p><i>NIH RxNav-validated drug interaction warnings with severity badge classification.</i></p>
+    <img src="./public/images/summary.png" width="700" alt="RxScan AI — Drug Interactions"/>
 </div>
 
 > 🔴 **Critical** · 🟡 **Moderate** · 🟢 **Minor** — each interaction classified by severity, linked to the RxNorm CUI, and flagged with the specific contraindication mechanism
