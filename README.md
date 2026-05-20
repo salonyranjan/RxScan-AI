@@ -138,9 +138,11 @@ RxScan AI operates in a **dark-mode-first synthwave paradigm** — electric cyan
 ### 2.2 🧬 FSM-Driven Interaction Check
 
 <div align="center">
-  <img src="./public/images/fm1.png" width="1000" alt="RxScan AI — FSM State Machine"/>
+  <img src="./public/images/fm01.png" width="1000" alt="RxScan AI — FSM State Machine"/>
   <p><i>Finite state machine: IDLE → UPLOADING → PROCESSING → VALIDATING → COMPLETED.</i></p>
-   <img src="./public/images/fm2.png" width="1000" alt="RxScan AI — FSM State Machine"/>
+   <img src="./public/images/fm02.png" width="1000" alt="RxScan AI — FSM State Machine"/>
+   <img src="./public/images/fm03.png" width="1000" alt="RxScan AI — FSM State Machine"/>
+   <img src="./public/images/fm04.png" width="1000" alt="RxScan AI — FSM State Machine"/>
     <p><i>Finite state machine: IDLE → UPLOADING → PROCESSING → VALIDATING → COMPLETED.</i></p>
 
 </div>
