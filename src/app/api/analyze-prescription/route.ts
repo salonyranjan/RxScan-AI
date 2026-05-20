@@ -2,11 +2,12 @@
  * ============================================================
  * PRESCRIPTION SCANNER API — route.ts
  * ============================================================
- * Fixes in this revision:
+ * Fixes in this master revision:
  * 1. Fixed return signature types to eliminate compilation errors.
  * 2. Captures and maps Prisma transaction rows down to payload keys.
  * 3. Sanitizes incoming drug strings to prevent malformed string parameters.
  * 4. 🚀 PATCHED: Instructs Groq AI to explicitly extract patient demographics!
+ * 5. 🚀 PATCHED: Persists AI-generated lifestyle warnings to the database!
  * ============================================================
  */
 
@@ -274,63 +275,6 @@ async function checkForDrugInteractions(
 }
 
 // ─────────────────────────────────────────────────────────────
-// POST /api/analyze-prescription
-// ─────────────────────────────────────────────────────────────
-export async function POST(request: NextRequest) {
-  try {
-    const body = await request.json();
-    const base64Image: string | undefined = body.imageData ?? body.image;
-
-    if (!base64Image) {
-      return NextResponse.json({ error: 'Missing image stream payload.' }, { status: 400 });
-    }
-
-    const extractionResult = await extractMedicationsFromImage(base64Image);
-    const { GoldInteractions, nihError } = await checkForDrugInteractions(extractionResult.medications);
-    const lifestyleWarnings = await getLifestyleWarnings(extractionResult.medications);
-
-    // Save and capture generated relational key metrics
-    const savedRecord = await prisma.prescriptionScan.create({
-      data: {
-        patientName: extractionResult.patientName,
-        recordDate: extractionResult.recordDate,
-        source: 'Groq Llama-4 Scout Vision (AI Extraction) + US Federal NIH RxNav Active Matrix',
-        medications: extractionResult.medications as any,
-        drugInteractions: GoldInteractions as any,
-        scannedAt: new Date(),
-      },
-    });
-
-    return NextResponse.json(
-      {
-        id: savedRecord.id,
-        patientName: extractionResult.patientName,
-        recordDate: extractionResult.recordDate,
-        medications: extractionResult.medications,
-        interactions: GoldInteractions,
-        nihError,
-        lifestyleWarnings,
-        source: 'Groq Llama-4 Scout Vision (AI Extraction) + US Federal NIH RxNav Active Matrix',
-        scannedAt: new Date().toISOString(),
-      },
-      { status: 200 },
-    );
-  } catch (err: any) {
-    console.error("Critical breakdown inside scanner pipeline loop:", err);
-    const isNotPrescription = err.message === 'NOT_A_PRESCRIPTION';
-    return NextResponse.json(
-      {
-        error: 'Server error',
-        message: isNotPrescription
-          ? 'File structure could not be verified as a valid prescription layout.'
-          : 'Internal pipeline runtime error.',
-      },
-      { status: 500 },
-    );
-  }
-}
-
-// ─────────────────────────────────────────────────────────────
 // LIFESTYLE & FOOD‑DRUG WARNING RESOLVER
 // ─────────────────────────────────────────────────────────────
 async function getLifestyleWarnings(medications: Medication[]): Promise<string[]> {
@@ -375,5 +319,63 @@ Return ONLY a JSON object with a single field "warnings" that is an array of sho
     return [];
   } catch {
     return [];
+  }
+}
+
+// ─────────────────────────────────────────────────────────────
+// POST /api/analyze-prescription
+// ─────────────────────────────────────────────────────────────
+export async function POST(request: NextRequest) {
+  try {
+    const body = await request.json();
+    const base64Image: string | undefined = body.imageData ?? body.image;
+
+    if (!base64Image) {
+      return NextResponse.json({ error: 'Missing image stream payload.' }, { status: 400 });
+    }
+
+    const extractionResult = await extractMedicationsFromImage(base64Image);
+    const { GoldInteractions, nihError } = await checkForDrugInteractions(extractionResult.medications);
+    const lifestyleWarnings = await getLifestyleWarnings(extractionResult.medications);
+
+    // Save and capture generated relational key metrics
+    const savedRecord = await prisma.prescriptionScan.create({
+      data: {
+        patientName: extractionResult.patientName,
+        recordDate: extractionResult.recordDate,
+        source: 'Groq Llama-4 Scout Vision (AI Extraction) + US Federal NIH RxNav Active Matrix',
+        medications: extractionResult.medications as any,
+        drugInteractions: GoldInteractions as any,
+        lifestyleWarnings: lifestyleWarnings as any, // 🚀 FIXED: Saved to database!
+        scannedAt: new Date(),
+      },
+    });
+
+    return NextResponse.json(
+      {
+        id: savedRecord.id,
+        patientName: extractionResult.patientName,
+        recordDate: extractionResult.recordDate,
+        medications: extractionResult.medications,
+        interactions: GoldInteractions,
+        nihError,
+        lifestyleWarnings,
+        source: 'Groq Llama-4 Scout Vision (AI Extraction) + US Federal NIH RxNav Active Matrix',
+        scannedAt: new Date().toISOString(),
+      },
+      { status: 200 },
+    );
+  } catch (err: any) {
+    console.error("Critical breakdown inside scanner pipeline loop:", err);
+    const isNotPrescription = err.message === 'NOT_A_PRESCRIPTION';
+    return NextResponse.json(
+      {
+        error: 'Server error',
+        message: isNotPrescription
+          ? 'File structure could not be verified as a valid prescription layout.'
+          : 'Internal pipeline runtime error.',
+      },
+      { status: 500 },
+    );
   }
 }
