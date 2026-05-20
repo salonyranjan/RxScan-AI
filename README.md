@@ -172,7 +172,7 @@ RxScan AI operates in a **dark-mode-first synthwave paradigm** — electric cyan
 <div align="center">
   <img src="./public/images/inter.png" width="1000" alt="RxScan AI — Drug Interactions"/>
   <p><i>NIH RxNav-validated drug interaction warnings with severity badge classification.</i></p>
-    <img src="./public/images/summary.png" width="700" alt="RxScan AI — Drug Interactions"/>
+    <img src="./public/images/sum1.png" width="700" alt="RxScan AI — Drug Interactions"/>
 </div>
 
 > 🔴 **Critical** · 🟡 **Moderate** · 🟢 **Minor** — each interaction classified by severity, linked to the RxNorm CUI, and flagged with the specific contraindication mechanism
