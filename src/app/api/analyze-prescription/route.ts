@@ -6,6 +6,7 @@
  * 1. Fixed return signature types to eliminate compilation errors.
  * 2. Captures and maps Prisma transaction rows down to payload keys.
  * 3. Sanitizes incoming drug strings to prevent malformed string parameters.
+ * 4. 🚀 PATCHED: Instructs Groq AI to explicitly extract patient demographics!
  * ============================================================
  */
 
@@ -50,14 +51,15 @@ async function extractMedicationsFromImage(base64Image: string): Promise<Extract
 
   const rawBase64 = base64Image.replace(/^data:image\/\w+;base64,/, '');
 
+  // 🚀 FIXED: The prompt now strictly mandates patientName and recordDate in the JSON output!
   const instructions = `
     You are a precise medical data extraction assistant specializing in multimodal clinical analysis.
 
     STEP 1 — VERIFY THE IMAGE:
     Analyze the image. If it is NOT a medical prescription slip, drug bottle label, or official clinical chart, return exactly this JSON: {"error": "NOT_A_PRESCRIPTION"}.
 
-    STEP 2 — EXTRACT AND STANDARDIZE GENERIC DRUGS:
-    If it is a valid prescription, extract all medications.
+    STEP 2 — EXTRACT DEMOGRAPHICS & STANDARDIZE GENERIC DRUGS:
+    If it is a valid prescription, extract the patient's name, the prescription date, and all medications.
 
     CRITICAL LOOKUP RULE: You MUST translate and convert all trade brand names, regional brand spellings,
     and brand extensions into their standard global GENERIC compound equivalent.
@@ -73,6 +75,8 @@ async function extractMedicationsFromImage(base64Image: string): Promise<Extract
 
     Return a JSON object matching this exact schema:
     {
+      "patientName": "Extracted Patient Name (or empty string if not found)",
+      "recordDate": "Extracted Date (or empty string if not found)",
       "medications": [
         {
           "drugName": "Pure Generic Compound Name Only",
@@ -117,7 +121,11 @@ async function extractMedicationsFromImage(base64Image: string): Promise<Extract
   if (parsed.error === 'NOT_A_PRESCRIPTION') throw new Error('NOT_A_PRESCRIPTION');
 
   if (Array.isArray(parsed)) return { patientName: "Unknown Patient", recordDate: new Date().toISOString(), medications: parsed as Medication[] };
-  if (Array.isArray(parsed.medications)) return { patientName: "Unknown Patient", recordDate: new Date().toISOString(), medications: parsed.medications as Medication[] };
+  if (Array.isArray(parsed.medications)) return { 
+    patientName: parsed.patientName || "Unknown Patient", 
+    recordDate: parsed.recordDate || new Date().toISOString(), 
+    medications: parsed.medications as Medication[] 
+  };
   return { patientName: "Unknown Patient", recordDate: new Date().toISOString(), medications: [] };
 }
 
