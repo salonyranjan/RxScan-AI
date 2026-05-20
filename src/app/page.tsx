@@ -23,7 +23,7 @@ interface ScanResult {
   id?: string;
   scannedAt: string;
   patientName: string;
-  recordDate?: string; // 🚀 FIXED: Correct Prisma key
+  recordDate?: string; 
   medications?: Medication[];
   interactions?: Interaction[];
   drugInteractions?: Interaction[];
@@ -99,7 +99,7 @@ function useScanSteps(isScanning: boolean) {
 
 function exportPDF(item: {
   patientName: string;
-  recordDate?: string; // 🚀 FIXED: Correct key name
+  recordDate?: string; 
   scannedAt: string;
   medications: Medication[];
   interactions: Interaction[];
@@ -123,7 +123,7 @@ function exportPDF(item: {
   doc.setFont(undefined as any, "normal");
   [
     `Patient Name: ${item.patientName || ""}`,
-    `Prescription Date: ${item.recordDate || ""}`, // 🚀 FIXED: Maps to correct key
+    `Prescription Date: ${item.recordDate || ""}`, 
     `Scan Timestamp: ${item.scannedAt || ""}`,
   ].forEach(line => { doc.text(line, margin, y); y += 16; });
   y += 8;
@@ -189,7 +189,7 @@ export default function PrescriptionScanner() {
   const [nihFailed,          setNihFailed]          = useState(false);
   const [dataSource,         setDataSource]         = useState("");
   const [patientName,        setPatientName]        = useState("");
-  const [recordDate,         setRecordDate]         = useState(""); // 🚀 FIXED: Renamed state var
+  const [recordDate,         setRecordDate]         = useState(""); 
   const [scanId,             setScanId]             = useState<string | null>(null);
   const [scanning,           setScanning]           = useState(false);
   const [scanError,          setScanError]          = useState("");
@@ -245,7 +245,7 @@ export default function PrescriptionScanner() {
     setMeds([]);
     setInteractions([]);
     setPatientName("");
-    setRecordDate(""); // 🚀 FIXED: Reset correct state var
+    setRecordDate(""); 
     setDataSource("");
     setScanId(null);
 
@@ -296,7 +296,7 @@ export default function PrescriptionScanner() {
       );
       setDataSource(data.source ?? "");
       setPatientName(data.patientName ?? "");
-      setRecordDate(data.recordDate ?? ""); // 🚀 FIXED: Maps to the correct backend key
+      setRecordDate(data.recordDate ?? ""); 
 
       const extractedId =
         data.id ||
@@ -713,7 +713,7 @@ export default function PrescriptionScanner() {
                     className="upload-btn"
                     onClick={() => exportPDF({
                       patientName,
-                      recordDate,           // 🚀 FIXED: Pass correct state var
+                      recordDate,            
                       scannedAt: new Date().toISOString(),
                       medications: meds,
                       interactions,
@@ -869,10 +869,11 @@ export default function PrescriptionScanner() {
                           style={{ padding:"6px 12px", fontSize:"12px" }}
                           onClick={() => exportPDF({
                             patientName:  scan.patientName,
-                            recordDate:   scan.recordDate, // 🚀 FIXED: Maps to the correct Prisma database key
+                            recordDate:   scan.recordDate, 
                             scannedAt:    scan.scannedAt,
                             medications:  scanMeds,
                             interactions: scanInteractions,
+                            lifestyleWarnings: scan.lifestyleWarnings || [], // 🚀 FIXED: Added Lifestyle Warnings payload!
                           })}
                         >
                           Export PDF
