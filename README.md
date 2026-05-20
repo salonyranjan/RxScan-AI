@@ -127,7 +127,7 @@ RxScan AI operates in a **dark-mode-first synthwave paradigm** — electric cyan
 ### 2.1 🔬 The Scanner Dropzone
 
 <div align="center">
-  <img src="./public/images/scanner-dropzone.png" width="400" alt="RxScan AI — Scanner Dropzone"/>
+  <img src="./public/images/2.png" width="1000" alt="RxScan AI — Scanner Dropzone"/>
   <p><i>High-precision WebGL canvas with real-time border detection and perspective correction.</i></p>
 </div>
 
@@ -138,9 +138,9 @@ RxScan AI operates in a **dark-mode-first synthwave paradigm** — electric cyan
 ### 2.2 🧬 FSM-Driven Interaction Check
 
 <div align="center">
-  <img src="./public/images/fm1.png" width="700" alt="RxScan AI — FSM State Machine"/>
+  <img src="./public/images/fm1.png" width="1000" alt="RxScan AI — FSM State Machine"/>
   <p><i>Finite state machine: IDLE → UPLOADING → PROCESSING → VALIDATING → COMPLETED.</i></p>
-   <img src="./public/images/fm2.png" width="700" alt="RxScan AI — FSM State Machine"/>
+   <img src="./public/images/fm2.png" width="1000" alt="RxScan AI — FSM State Machine"/>
     <p><i>Finite state machine: IDLE → UPLOADING → PROCESSING → VALIDATING → COMPLETED.</i></p>
 
 </div>
@@ -152,12 +152,12 @@ RxScan AI operates in a **dark-mode-first synthwave paradigm** — electric cyan
 ### 2.3 📊 Glowing Recharts Vitals Monitor
 
 <div align="center">
-  <img src="./public/images/chart.png" width="700" alt="RxScan AI — Vitals Dashboard"/>
+  <img src="./public/images/chart.png" width="1000" alt="RxScan AI — Vitals Dashboard"/>
   <p><i>Real-time biometric visualization — blood pressure, heart rate, glucose — with custom gradient fills.</i></p>
 </div>
 
 <div align="center">
-  <img src="./public/images/vitals-detail.png" width="700" alt="RxScan AI — Vitals Detail"/>
+  <img src="./public/images/life.png" width="1000" alt="RxScan AI — Vitals Detail"/>
   <p><i>Animated threshold lines and glassmorphic panels respond to window resizing without frame drops.</i></p>
 </div>
 
@@ -168,7 +168,7 @@ RxScan AI operates in a **dark-mode-first synthwave paradigm** — electric cyan
 ### 2.4 💊 Drug Interaction Panel
 
 <div align="center">
-  <img src="./public/images/interaction.png" width="700" alt="RxScan AI — Drug Interactions"/>
+  <img src="./public/images/inter.png" width="1000" alt="RxScan AI — Drug Interactions"/>
   <p><i>NIH RxNav-validated drug interaction warnings with severity badge classification.</i></p>
     <img src="./public/images/summary.png" width="700" alt="RxScan AI — Drug Interactions"/>
 </div>
