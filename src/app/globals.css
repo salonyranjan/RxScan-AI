@@ -32,6 +32,9 @@
   --font-display: 'Syne', sans-serif;
   --font-body:   'DM Sans', sans-serif;
   --font-mono:   'DM Mono', monospace;
+  --font-display: var(--font-syne);
+  --font-body:    var(--font-dm-sans);
+  --font-mono:    var(--font-dm-mono);
 }
 
 @keyframes fadeUp {
