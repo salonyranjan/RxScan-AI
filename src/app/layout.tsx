@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { Syne, DM_Mono, DM_Sans } from "next/font/google";
-import "./globals.css"; // Ensure your global styles are imported here
+import "./globals.css";
 
-// 1. Load fonts via next/font for automatic optimization (prevents CLS)
+// 1. Optimized font loading (prevents layout shifts and network blocking)
 const syne = Syne({ 
   subsets: ["latin"], 
   weight: ["400", "500", "700", "800"], 
@@ -19,7 +19,7 @@ const dmSans = DM_Sans({
   variable: '--font-dm-sans' 
 });
 
-// 2. Define SEO Metadata for high Google ranking
+// 2. SEO Metadata (Google Ranking)
 export const metadata: Metadata = {
   title: {
     default: "RxScan AI — Clinical Prescription Scanner",
@@ -45,7 +45,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" dir="ltr" className={`${syne.variable} ${dmMono.variable} ${dmSans.variable}`}>
       <head>
-        {/* Favicon handling: Next.js will automatically detect icon.svg or icon.png in this folder */}
+        {/* Verification tag for Google Search Console */}
+        <meta name="google-site-verification" content="f95427f5ed88e89c" />
       </head>
       <body className="antialiased">
         {children}
