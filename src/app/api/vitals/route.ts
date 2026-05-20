@@ -1,17 +1,8 @@
-// src/app/api/vitals/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import prisma from "@/lib/db";
 
-// 🚀 TYPE SAFEGUARD: Explicitly define the shape for the query client 
-// to bypass the local cache sync delay cleanly.
-type UnsyncedPrismaClient = typeof prisma & {
-  vitalsLog: {
-    create: (args: { data: { scanId: string; heartRate: number; systolicBP: number; diastolicBP: number } }) => Promise<any>;
-    findMany: (args: { where: { scanId: string }; orderBy: { recordedAt: "asc" | "desc" } }) => Promise<any[]>;
-  };
-};
-
-const safePrisma = prisma as UnsyncedPrismaClient;
+// 🚀 CRITICAL: Prevents Vercel's Edge Network from aggressively caching real-time patient biometrics!
+export const dynamic = 'force-dynamic';
 
 /**
  * POST /api/vitals
@@ -40,8 +31,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "PrescriptionScan target record reference not found" }, { status: 404 });
     }
 
-    // 🚀 FIXED: Persist through type asserted safely mapped client proxies
-    const created = await safePrisma.vitalsLog.create({
+    // 🚀 FIXED: Removed the proxy hack. Uses the native, fully typed Prisma client!
+    const created = await prisma.vitalsLog.create({
       data: {
         scanId,
         heartRate: hr,
@@ -65,22 +56,24 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const scanId = searchParams.get("scanId");
+    
     if (!scanId) {
       return NextResponse.json({ error: "scanId query parameter is required" }, { status: 400 });
     }
 
-    // 🚀 FIXED: Extract records using proxy overrides to handle unsynced compilation contexts
-    const logs = await safePrisma.vitalsLog.findMany({
+    // 🚀 FIXED: Uses native Prisma client with guaranteed types
+    const logs = await prisma.vitalsLog.findMany({
       where: { scanId },
       orderBy: { recordedAt: "asc" },
     });
 
-    const formatted = logs.map((log: any) => ({
+    // Cleanly map the payload so Recharts can ingest it flawlessly
+    const formatted = logs.map((log) => ({
       id: log.id,
-      recordedAt: log.recordedAt instanceof Date ? log.recordedAt.toISOString() : new Date(log.recordedAt).toISOString(),
-      heartRate: Number(log.heartRate),
-      systolicBP: Number(log.systolicBP),
-      diastolicBP: Number(log.diastolicBP),
+      recordedAt: log.recordedAt.toISOString(),
+      heartRate: log.heartRate,
+      systolicBP: log.systolicBP,
+      diastolicBP: log.diastolicBP,
     }));
 
     return NextResponse.json(formatted, { status: 200 });
