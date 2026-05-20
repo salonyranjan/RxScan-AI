@@ -23,7 +23,7 @@ interface ScanResult {
   id?: string;
   scannedAt: string;
   patientName: string;
-  prescriptionDate?: string;
+  recordDate?: string; // 🚀 FIXED: Correct Prisma key
   medications?: Medication[];
   interactions?: Interaction[];
   drugInteractions?: Interaction[];
@@ -99,7 +99,7 @@ function useScanSteps(isScanning: boolean) {
 
 function exportPDF(item: {
   patientName: string;
-  prescriptionDate?: string;
+  recordDate?: string; // 🚀 FIXED: Correct key name
   scannedAt: string;
   medications: Medication[];
   interactions: Interaction[];
@@ -123,7 +123,7 @@ function exportPDF(item: {
   doc.setFont(undefined as any, "normal");
   [
     `Patient Name: ${item.patientName || ""}`,
-    `Prescription Date: ${item.prescriptionDate || ""}`,
+    `Prescription Date: ${item.recordDate || ""}`, // 🚀 FIXED: Maps to correct key
     `Scan Timestamp: ${item.scannedAt || ""}`,
   ].forEach(line => { doc.text(line, margin, y); y += 16; });
   y += 8;
@@ -189,7 +189,7 @@ export default function PrescriptionScanner() {
   const [nihFailed,          setNihFailed]          = useState(false);
   const [dataSource,         setDataSource]         = useState("");
   const [patientName,        setPatientName]        = useState("");
-  const [prescriptionDate,   setPrescriptionDate]   = useState("");
+  const [recordDate,         setRecordDate]         = useState(""); // 🚀 FIXED: Renamed state var
   const [scanId,             setScanId]             = useState<string | null>(null);
   const [scanning,           setScanning]           = useState(false);
   const [scanError,          setScanError]          = useState("");
@@ -245,9 +245,9 @@ export default function PrescriptionScanner() {
     setMeds([]);
     setInteractions([]);
     setPatientName("");
-    setPrescriptionDate("");
+    setRecordDate(""); // 🚀 FIXED: Reset correct state var
     setDataSource("");
-    setScanId(null); // 🚀 Clear old tracking vectors instantly when a new image runs
+    setScanId(null);
 
     try {
       const res  = await fetch("/api/analyze-prescription", {
@@ -296,15 +296,14 @@ export default function PrescriptionScanner() {
       );
       setDataSource(data.source ?? "");
       setPatientName(data.patientName ?? "");
-      setPrescriptionDate(data.prescriptionDate ?? "");
-      
-      // 🚀 FIXED CASCADING MATRIX: Resolves keys across deep model objects natively
-      const extractedId = 
-        data.id || 
-        data.scanId || 
+      setRecordDate(data.recordDate ?? ""); // 🚀 FIXED: Maps to the correct backend key
+
+      const extractedId =
+        data.id ||
+        data.scanId ||
         data.vitalsId ||
-        (data.prescription && data.prescription.id) || 
-        (data.log && data.log.id) || 
+        (data.prescription && data.prescription.id) ||
+        (data.log && data.log.id) ||
         (data.scan && data.scan.id) ||
         (data.data && data.data.id);
 
@@ -710,7 +709,17 @@ export default function PrescriptionScanner() {
 
                 {/* Export button */}
                 <div style={{ margin:"20px 0", textAlign:"center" }}>
-                  <button className="upload-btn" onClick={() => exportPDF({ patientName, prescriptionDate, scannedAt: new Date().toISOString(), medications: meds, interactions, lifestyleWarnings })}>
+                  <button
+                    className="upload-btn"
+                    onClick={() => exportPDF({
+                      patientName,
+                      recordDate,           // 🚀 FIXED: Pass correct state var
+                      scannedAt: new Date().toISOString(),
+                      medications: meds,
+                      interactions,
+                      lifestyleWarnings,
+                    })}
+                  >
                     Export Clinical Safety Summary PDF
                   </button>
                 </div>
@@ -749,14 +758,11 @@ export default function PrescriptionScanner() {
             )}
 
             {/* ==================== VITALS DASHBOARD (INDEPENDENT LAYER) ==================== */}
-            {/* Deliberately outside the hasResults gate so the component mounts immediately   */}
-            {/* on page load and can display its "Awaiting scan ID token…" fallback state.     */}
-            {/* Once a scan completes, scanId becomes a real UUID and the dashboard hydrates. */}
             <div style={{ marginBottom: "24px" }}>
               <VitalsDashboard scanId={scanId} />
             </div>
 
-            {/* ── SCHEDULE PANEL (guarded — only relevant once meds are known) ── */}
+            {/* ── SCHEDULE PANEL ── */}
             {hasResults && (
               <div className="schedule-panel">
                 <div className="section-label" style={{ marginBottom:"20px" }}>
@@ -862,11 +868,11 @@ export default function PrescriptionScanner() {
                           className="upload-btn"
                           style={{ padding:"6px 12px", fontSize:"12px" }}
                           onClick={() => exportPDF({
-                            patientName:      scan.patientName,
-                            prescriptionDate: scan.prescriptionDate,
-                            scannedAt:        scan.scannedAt,
-                            medications:      scanMeds,
-                            interactions:     scanInteractions,
+                            patientName:  scan.patientName,
+                            recordDate:   scan.recordDate, // 🚀 FIXED: Maps to the correct Prisma database key
+                            scannedAt:    scan.scannedAt,
+                            medications:  scanMeds,
+                            interactions: scanInteractions,
                           })}
                         >
                           Export PDF
@@ -956,7 +962,7 @@ export default function PrescriptionScanner() {
 }
 
 // ═════════════════════════════════════════════════════════════════════════════
-// STYLES — extracted so the JSX is readable
+// STYLES
 // ═════════════════════════════════════════════════════════════════════════════
 const CSS = `
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
