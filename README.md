@@ -646,8 +646,8 @@ Get RxScan AI running locally in under **3 minutes**.
 
 ```bash
 # Step 1 — Clone the repository
-git clone https://github.com/salonyranjan/rxscan-ai.git
-cd rxscan-ai
+git clone https://github.com/salonyranjan/RxScan-AI.git
+cd RxScan-AI
 
 # Step 2 — Install dependencies
 npm install
